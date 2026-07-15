@@ -1,7 +1,7 @@
-from fastapi import APIRouter
+from fastapi import FastAPI
 
 
-def mount_routes(api: APIRouter) -> None:
+def mount_routes(app: FastAPI) -> None:
     """Registra os routers dos módulos no router `/api`. Adicionar um módulo é uma linha
     aqui — `api.include_router(<modulo>_router)` — sem tocar em mais nada do `core`.
 

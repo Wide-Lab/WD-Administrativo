@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import mount_routes
@@ -18,23 +18,32 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await get_database().dispose_engine()
 
 
-app = FastAPI(title="Superapp Widelab", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=get_config().CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-api = APIRouter(prefix="/api")
+def setup_middleware(app: FastAPI) -> None:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=get_config().CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
-@api.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="Superapp Widelab",
+        lifespan=lifespan,
+        root_path="/api",
+    )
+
+    setup_middleware(app)
+
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    mount_routes(app)
+
+    return app
 
 
-mount_routes(api)
-app.include_router(api)
+app = create_app()
