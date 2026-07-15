@@ -63,6 +63,13 @@ cada Empresa por um **convênio** — um vínculo que carrega os termos *por Emp
 preços, regras de subsídio). Um mesmo restaurante atende várias Empresas com preços
 diferentes, exatamente como o protótipo promete.
 
+**Uma organização tem um tipo só, definido na criação e imutável.** `platform`, `company`
+ou `partner` — nunca os três acumulados. Uma pessoa jurídica que precise ser Empresa *e*
+Parceiro ao mesmo tempo não é caso do produto agora; se um dia for, o caminho é migrar
+`type` para *papéis de organização* — migração deliberada, não corrupção silenciosa. A
+integridade (o tipo certo em cada lado do convênio, e o tipo não mudando sob um convênio
+existente) é garantida no banco, não só na aplicação — ver `backend/03-organizacoes-e-tenancy.md`.
+
 **Identidade própria, atrás de uma porta trocável.** O superapp possui login próprio porque
 tem usuários que **nunca** estarão na Central (funcionários de outras Empresas clientes e
 Parceiros) e porque o SSO da Central é fase futura lá deles. A fonte de identidade fica
