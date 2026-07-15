@@ -1,0 +1,105 @@
+@startuml banco_superapp_widelab
+hide circle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName Helvetica
+skinparam nodesep 60
+skinparam ranksep 70
+
+skinparam entity {
+  BackgroundColor #FFFFFF
+  BorderColor #94A3B8
+  FontColor #0F172A
+  FontSize 13
+  ArrowColor #64748B
+}
+
+' Paletas por módulo do kernel
+!$auth   = "#DBEAFE"   /' auth   — azul  '/
+!$access = "#DCFCE7"   /' access — verde '/
+!$access2 = "#FEF9C3"  /' access — amarelo (entitlement/convites) '/
+
+entity "users" as users $auth {
+  * id : UUID <<PK>>
+  --
+  * email : CITEXT <<unique>>
+  * name : text
+  password_hash : text
+  * status : enum(active, disabled)
+  * created_at : timestamptz
+  * updated_at : timestamptz
+}
+
+entity "organizations" as organizations $access {
+  * id : UUID <<PK>>
+  --
+  * type : enum(platform, company, partner)
+  * name : text
+  document : text
+  * status : enum(active, disabled)
+  * created_at : timestamptz
+  --
+  <<unique (id, type)>>
+}
+
+entity "memberships" as memberships $access {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * organization_id : UUID <<FK>>
+  * role : enum
+  * status : enum(active, disabled)
+  * created_at : timestamptz
+  --
+  <<unique (user_id, organization_id)>>
+}
+
+entity "partner_agreements" as partner_agreements $access {
+  * id : UUID <<PK>>
+  --
+  * company_id : UUID <<FK>>
+  * partner_id : UUID <<FK>>
+  * status : enum(active, suspended)
+  * created_at : timestamptz
+  --
+  <<unique (company_id, partner_id)>>
+}
+
+entity "module_entitlements" as module_entitlements $access2 {
+  * id : UUID <<PK>>
+  --
+  * organization_id : UUID <<FK>>
+  * module_key : text
+  * granted_at : timestamptz
+  * granted_by : UUID <<FK>>
+  --
+  <<unique (organization_id, module_key)>>
+}
+
+entity "invitations" as invitations $access2 {
+  * id : UUID <<PK>>
+  --
+  * email : CITEXT
+  * organization_id : UUID <<FK>>
+  * role : enum
+  * token : text <<unique>>
+  * status : enum(pending, accepted, revoked, expired)
+  * expires_at : timestamptz
+  * invited_by : UUID <<FK>>
+  * created_at : timestamptz
+}
+
+' --- Ligações a organizations (à esquerda) ---
+organizations ||--o{ memberships          : organization_id
+organizations ||--o{ partner_agreements   : "company_id\n(type=company)"
+organizations ||--o{ partner_agreements   : "partner_id\n(type=partner)"
+organizations ||--o{ module_entitlements  : "organization_id\n(type=company)"
+organizations ||--o{ invitations          : organization_id
+
+' --- Ligações a users (à direita) ---
+users ||--o{ memberships          : user_id
+users ||--o{ module_entitlements  : granted_by
+users ||--o{ invitations          : invited_by
+
+@enduml

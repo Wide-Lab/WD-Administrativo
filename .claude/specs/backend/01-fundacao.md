@@ -12,7 +12,7 @@ Montar o esqueleto do backend do superapp seguindo a convenção hexagonal da ca
 
 - Nomes de tabela são `snake_case` no plural, **sem** o prefixo `T0xx` da Central.
 - O núcleo é desenhado pra multi-tenancy e autorização (ao contrário da Central, que
-  *"autentica, não autoriza"*) — mas esta spec **não** implementa tenancy nem papéis; só
+  _"autentica, não autoriza"_) — mas esta spec **não** implementa tenancy nem papéis; só
   deixa `core` pronto pra recebê-los nas specs 02–04.
 
 ## Fora de escopo
@@ -24,16 +24,16 @@ aqui.
 
 ## Stack
 
-| Papel | Escolha |
-|---|---|
-| Framework | FastAPI |
-| Servidor ASGI | Uvicorn |
-| ORM | SQLAlchemy 2 (async) |
-| Driver Postgres | `asyncpg` |
-| Migrations | Alembic |
-| Config | `pydantic-settings` |
-| Gerenciador de pacotes | `uv` |
-| Qualidade | `ruff` (lint + format), `mypy` |
+| Papel                  | Escolha                        |
+| ---------------------- | ------------------------------ |
+| Framework              | FastAPI                        |
+| Servidor ASGI          | Uvicorn                        |
+| ORM                    | SQLAlchemy 2 (async)           |
+| Driver Postgres        | `asyncpg`                      |
+| Migrations             | Alembic                        |
+| Config                 | `pydantic-settings`            |
+| Gerenciador de pacotes | `uv`                           |
+| Qualidade              | `ruff` (lint + format), `mypy` |
 
 Python >= 3.14, como na Central.
 
@@ -50,6 +50,9 @@ pydantic-settings
 > Config e carga do `.env` são **só** via `pydantic-settings`
 > (`SettingsConfigDict(env_file=".env")`, como em `core/config.py`) — **sem** `python-dotenv`,
 > que seria redundante.
+>
+> `uvicorn` é fixado explicitamente no `pyproject` (a app sobe com `uvicorn src.main:app`),
+> ainda que `fastapi[standard]` já o inclua.
 
 Dev:
 
@@ -65,7 +68,7 @@ mypy
 
 ```
 backend/
-  alembic/
+  migrations/
     versions/
     env.py
   src/
@@ -74,9 +77,18 @@ backend/
       routes.py             # mount_routes(app) — um include_router por módulo
     core/
       config.py             # Config (pydantic-settings), get_config()
-      database.py           # engine + session factory async
-      security.py           # hash de senha e JWT — conteúdo chega em 02
-      exceptions.py         # exceções de domínio compartilhadas entre módulos
+      database/             # infra de banco (pacote)
+        base_model.py        # Base(DeclarativeBase)
+        database.py          # dataclass Database (engine + sessionmaker)
+        startup.py           # create_engine/sessionmaker + get_database() (factory @lru_cache)
+        types.py             # Protocol Engine
+        unit_of_work.py      # SQLAlchemyUnitOfWork
+        repositories/
+          sqlalchemy_base.py  # repositório assíncrono genérico (base dos módulos)
+      security/             # primitivos de segurança (pacote)
+        passwords.py         # hasher de senha — Argon2id
+        jwt.py               # encoder/decoder de token — pyjwt
+      exceptions.py         # AppError + hierarquia (NotFound, Conflict, Unauthorized, …)
       logging.py
     modules/
       <modulo>/
@@ -97,7 +109,7 @@ backend/
   .env.example
 ```
 
-**Regra que não se negocia (é o *seam* de extração da `00-visao-geral.md`):** dentro de um
+**Regra que não se negocia (é o _seam_ de extração da `00-visao-geral.md`):** dentro de um
 módulo, tudo que fala com o mundo externo (HTTP, banco) mora em `adapters/`. `domain/` não
 importa nada de `application/`, `adapters/`, FastAPI ou SQLAlchemy. `application/` importa
 `domain/`, nunca `adapters/` diretamente — recebe repositórios como argumento, injetados
@@ -133,11 +145,45 @@ def get_config() -> Config:
     return Config()  # type: ignore
 ```
 
-## `src/core/database.py`
+## `src/core/database/` (pacote)
 
-Igual à Central: uma classe `_DataBase` com `init()`, `engine`, `create_session()` e
-`session_context()` como dependency assíncrona (`AsyncGenerator[AsyncSession]`). Reaproveitar
-o arquivo quase sem alteração.
+Padrão trazido do backend `seifert`, **não** o `_DataBase` singleton da Central:
+
+- `base_model.py` — `Base(DeclarativeBase)`, base ORM de todos os models.
+- `types.py` — `Protocol Engine` (só o que a app usa do engine: `dispose()`).
+- `database.py` — dataclass `Database` (engine + `async_sessionmaker`) com `create_session()`
+  e `dispose_engine()`.
+- `startup.py` — `create_engine`/`create_sessionmaker` + `get_database()` (factory
+  `@lru_cache`). **Não há `db.init()`** — a instância nasce preguiçosamente no `get_database()`.
+- `unit_of_work.py` — `SQLAlchemyUnitOfWork` (commit/rollback; mapeia `IntegrityError` →
+  `ConflictError`).
+- `repositories/sqlalchemy_base.py` — repositório assíncrono genérico (`get_by_id`, `create`,
+  `update`, `delete`, `paginate`), base dos repositórios dos módulos.
+
+O repositório genérico e a paginação dependem de tipos de comando/sentinela compartilhados e
+de um módulo de paginação. Ao portar de `seifert`, **traga junto** `core/types` (comandos
+`BaseCreateCommand`/`BaseUpdateCommand`, sentinela `UNSET`, `DataclassInstance`) e
+`core/pagination` (`Page`/`PageParams`) — sem eles, `repositories/sqlalchemy_base.py` não
+importa.
+
+## `src/core/security/` (pacote)
+
+Os primitivos de segurança **já entram na fundação** (o módulo `auth` da spec 02 constrói
+sessão e `current_user` em cima deles). Os algoritmos são **decisão travada**
+(`00-visao-geral.md` e `backend/02`):
+
+- `passwords.py` — hasher **Argon2id** (`argon2-cffi`), nunca bcrypt.
+- `jwt.py` — encoder/decoder de token com **pyjwt** (`pyjwt[crypto]`), não python-jose.
+
+Isso adianta as dependências `argon2-cffi` e `pyjwt[crypto]` (antes previstas só na spec 02),
+já que os primitivos aterrissaram aqui.
+
+## `src/core/exceptions.py`
+
+`AppError` base (com `status_code`, `code`, `message`, `details`) e a hierarquia que os
+adapters HTTP traduzem em resposta: `NotFoundError` (404), `ConflictError` (409),
+`UnauthorizedError` (401), `ForbiddenError` (403), `ValidationAppError` (422),
+`PersistenceError` (500).
 
 ## `src/main.py`
 
@@ -149,13 +195,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import mount_routes
 from src.core.config import get_config
-from src.core.database import db
+from src.core.database.startup import get_database
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    db.init()
     yield
+    await get_database().dispose_engine()
 
 
 app = FastAPI(lifespan=lifespan, root_path="/api")
@@ -200,14 +246,14 @@ existir — não é requisito desta spec.
 
 ## Scripts (via `uv run`)
 
-| Comando | Ação |
-|---|---|
-| `uvicorn src.main:app --reload` | sobe em desenvolvimento (`:8000`) |
-| `ruff format .` | formata |
-| `ruff check .` | lint |
-| `mypy src` | typecheck |
-| `alembic revision --autogenerate -m "msg"` | gera migration |
-| `alembic upgrade head` | aplica migrations |
+| Comando                                    | Ação                              |
+| ------------------------------------------ | --------------------------------- |
+| `uvicorn src.main:app --reload`            | sobe em desenvolvimento (`:8000`) |
+| `ruff format .`                            | formata                           |
+| `ruff check .`                             | lint                              |
+| `mypy src`                                 | typecheck                         |
+| `alembic revision --autogenerate -m "msg"` | gera migration                    |
+| `alembic upgrade head`                     | aplica migrations                 |
 
 ## Critérios de aceite
 
