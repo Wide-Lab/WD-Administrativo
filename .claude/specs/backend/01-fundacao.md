@@ -45,8 +45,11 @@ sqlalchemy[asyncio]
 asyncpg
 alembic
 pydantic-settings
-python-dotenv
 ```
+
+> Config e carga do `.env` são **só** via `pydantic-settings`
+> (`SettingsConfigDict(env_file=".env")`, como em `core/config.py`) — **sem** `python-dotenv`,
+> que seria redundante.
 
 Dev:
 
