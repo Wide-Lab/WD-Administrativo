@@ -2,7 +2,7 @@
 
 **Depende de:** `backend/01-fundacao.md`.
 **Entrega:** o módulo `auth` — identidade global de pessoa (uma pessoa, um e-mail, um
-login), autenticação por senha, sessão em cookie, `GET /api/auth/me`, e a **porta trocável**
+login), autenticação por senha, sessão em cookie, `GET /api/me`, e a **porta trocável**
 de autenticação que deixa o SSO da Central plugável depois sem tocar autorização.
 
 ## Objetivo
@@ -27,14 +27,14 @@ nunca importam `auth` diretamente — consomem `current_user`, exposto por `core
 
 `users`
 
-| coluna | tipo | nota |
-|---|---|---|
-| `id` | UUID (PK) | |
-| `email` | CITEXT, único | e-mail é sempre CITEXT, nunca `String`+`.lower()` |
-| `name` | text | |
-| `password_hash` | text, nullable | Argon2id. Nulo enquanto convidado sem senha definida, ou se autenticar só via SSO futuro |
-| `status` | enum `active`/`disabled` | |
-| `created_at` / `updated_at` | timestamptz | |
+| coluna                      | tipo                     | nota                                                                                     |
+| --------------------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| `id`                        | UUID (PK)                |                                                                                          |
+| `email`                     | CITEXT, único            | e-mail é sempre CITEXT, nunca `String`+`.lower()`                                        |
+| `name`                      | text                     |                                                                                          |
+| `password_hash`             | text, nullable           | Argon2id. Nulo enquanto convidado sem senha definida, ou se autenticar só via SSO futuro |
+| `status`                    | enum `active`/`disabled` |                                                                                          |
+| `created_at` / `updated_at` | timestamptz              |                                                                                          |
 
 Sem `organization_id`, sem `role`. Identidade é global.
 
@@ -42,7 +42,7 @@ Sem `organization_id`, sem `role`. Identidade é global.
 
 - **Senha:** Argon2id (`argon2-cffi`), nunca bcrypt. Hash e verificação em `core/security.py`.
 - **Sessão:** JWT assinado pela própria aplicação (HS256 com segredo do servidor basta —
-  é um monólito, há um único verificador; a Central usa RS256 porque *outros apps* validam,
+  é um monólito, há um único verificador; a Central usa RS256 porque _outros apps_ validam,
   o que não é o nosso caso). Entregue num cookie **httpOnly, Secure, SameSite=Lax**, expiração
   configurável (default 12h). O payload carrega só `sub` (user_id) e `exp` — **nada de papel
   ou organização no token** (isso muda a cada request e é resolvido pelo `access`).
@@ -60,17 +60,17 @@ implementação desta spec é `PasswordAuthenticator` (confere senha na tabela `
 tocar** em nada de `access`/autorização. Essa fronteira é a decisão registrada na
 `00-visao-geral.md`.
 
-## Endpoints (`/api/auth`)
+## Endpoints
 
-| Método | Rota | Ação |
-|---|---|---|
-| `POST` | `/auth/login` | `{email, password}` → valida via `Authenticator`, emite cookie de sessão, 200 |
-| `POST` | `/auth/logout` | limpa o cookie, 204 |
-| `GET` | `/auth/me` | identidade do usuário logado: `{id, email, name}`. 401 se não logado |
-| `POST` | `/auth/password` | logado, `{current_password, new_password}` → troca senha |
+| Método | Rota                       | Ação                                                                          |
+| ------ | -------------------------- | ----------------------------------------------------------------------------- |
+| `POST` | `/api/autenticacao/entrar` | `{email, password}` → valida via `Authenticator`, emite cookie de sessão, 200 |
+| `POST` | `/api/autenticacao/sair`   | limpa o cookie, 204                                                           |
+| `GET`  | `/api/me`                  | identidade do usuário logado: `{id, email, name}`. 401 se não logado          |
+| `PUT`  | `/api/me/senha`            | logado, `{current_password, new_password}` → troca senha                      |
 
-`GET /auth/me` devolve **só identidade**. Vínculos, personas e módulos habilitados vêm do
-`GET /api/me/context` (specs 04/05).
+`GET /api/me` devolve **só identidade**. Vínculos, personas e módulos habilitados vêm de
+`GET /api/me/contexto` e `GET /api/organizacoes/{orgId}/eu` (specs 04/05).
 
 ## CLI
 
@@ -80,9 +80,9 @@ senha via prompt). O vínculo com a organização plataforma é dado pela spec 0
 
 ## Critérios de aceite
 
-1. `POST /auth/login` com credenciais válidas seta cookie httpOnly e `GET /auth/me` passa a
-   responder a identidade; com credenciais inválidas, 401 e nenhum cookie.
-2. `GET /auth/me` sem cookie responde 401.
+1. `POST /api/autenticacao/entrar` com credenciais válidas seta cookie httpOnly e `GET /api/me`
+   passa a responder a identidade; com credenciais inválidas, 401 e nenhum cookie.
+2. `GET /api/me` sem cookie responde 401.
 3. Senha nunca aparece em log nem em resposta; `password_hash` é Argon2id.
 4. O token de sessão não contém papel nem organização.
 5. Trocar `PasswordAuthenticator` por outra implementação de `Authenticator` não exige

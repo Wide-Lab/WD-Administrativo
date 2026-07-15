@@ -91,6 +91,13 @@ seam natural do frontend é por **persona**; o do backend é por **módulo** —
 **Nomes de tabela normais.** `snake_case` no plural (`users`, `organizations`,
 `memberships`, `module_entitlements`, …). **Sem** o prefixo `T0xx` da Central.
 
+**Rotas em português; tenant no path.** Os caminhos da API são em português
+(`/api/autenticacao/entrar`, `/api/organizacoes/{orgId}/convenios`). A organização ativa
+viaja no **path** (`/api/organizacoes/{orgId}/...`), nunca em header nem em sessão — a
+requisição é autoexplicativa, não há "organização default" implícita, e a URL do frontend é
+compartilhável por organização. Só as **rotas** são em português; nomes de tabela, coluna e
+valores de enum seguem em inglês `snake_case`.
+
 ## Convenções herdadas
 
 Da casa (Central / receipt-reader), não inventadas aqui:

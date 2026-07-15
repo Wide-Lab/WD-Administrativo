@@ -8,7 +8,7 @@ alimenta a casca do frontend.
 ## Objetivo
 
 Responder "quem é você **nesta** organização e o que pode fazer". Identidade (spec 02) é
-global; autorização é sempre *dentro de uma organização*. O mesmo usuário pode ser
+global; autorização é sempre _dentro de uma organização_. O mesmo usuário pode ser
 `collaborator` numa Empresa e `partner_admin` num Parceiro.
 
 ## Fora de escopo
@@ -21,24 +21,24 @@ global; autorização é sempre *dentro de uma organização*. O mesmo usuário 
 
 `memberships`
 
-| coluna | tipo | nota |
-|---|---|---|
-| `id` | UUID (PK) | |
-| `user_id` | UUID → `users` | |
-| `organization_id` | UUID → `organizations` | |
-| `role` | enum (ver abaixo) | |
-| `status` | enum `active`/`disabled` | |
-| `created_at` | timestamptz | |
+| coluna            | tipo                     | nota |
+| ----------------- | ------------------------ | ---- |
+| `id`              | UUID (PK)                |      |
+| `user_id`         | UUID → `users`           |      |
+| `organization_id` | UUID → `organizations`   |      |
+| `role`            | enum (ver abaixo)        |      |
+| `status`          | enum `active`/`disabled` |      |
+| `created_at`      | timestamptz              |      |
 
 Único por `(user_id, organization_id)` — um papel por pessoa por organização nesta fase.
 
 ## Papéis por tipo de organização
 
-| Tipo de org | Papéis |
-|---|---|
-| `platform` | `platform_admin` |
-| `company` | `company_admin`, `hr`, `finance`, `manager`, `collaborator` |
-| `partner` | `partner_admin`, `partner_operator` |
+| Tipo de org | Papéis                                                      |
+| ----------- | ----------------------------------------------------------- |
+| `platform`  | `platform_admin`                                            |
+| `company`   | `company_admin`, `hr`, `finance`, `manager`, `collaborator` |
+| `partner`   | `partner_admin`, `partner_operator`                         |
 
 Papel só é válido no tipo de organização correspondente (um `hr` não existe num `partner`).
 
@@ -46,7 +46,7 @@ Papel só é válido no tipo de organização correspondente (um `hr` não exist
 
 Papel mapeia pra um conjunto **fixo** de permissões (capabilities), declaradas em código —
 ex.: `company.manage_members`, `agreements.write`, `invoices.approve_hr`,
-`invoices.approve_finance`, `catalog.write`. O kernel define as permissões *da plataforma*;
+`invoices.approve_finance`, `catalog.write`. O kernel define as permissões _da plataforma_;
 cada módulo de negócio declara as suas próprias (spec 05).
 
 Guard: uma dependency **`require_permission("...")`** (exposta via `core`) que resolve o papel
@@ -58,40 +58,60 @@ com `require_module` (spec 05) — um endpoint de app tipicamente exige as duas.
 Persona é derivada dos vínculos + tipo de organização ativa, e decide qual superfície de
 frontend o usuário vê:
 
-| Vínculo na org ativa | Persona |
-|---|---|
-| membro de `platform` | Plataforma (admin Widelab) |
-| `company_admin`/`hr`/`finance`/`manager` numa `company` | Admin da Empresa |
-| `collaborator` numa `company` | Colaborador |
-| membro de `partner` | Parceiro |
+| Vínculo na org ativa                                    | Persona                    |
+| ------------------------------------------------------- | -------------------------- |
+| membro de `platform`                                    | Plataforma (admin Widelab) |
+| `company_admin`/`hr`/`finance`/`manager` numa `company` | Admin da Empresa           |
+| `collaborator` numa `company`                           | Colaborador                |
+| membro de `partner`                                     | Parceiro                   |
 
-## Endpoint de contexto
+## Endpoints de contexto
 
-`GET /api/me/context` — o "bootstrap" que a casca do frontend consome:
+Dois níveis, coerentes com o tenant no path:
+
+`GET /api/me/contexto` — global, o "bootstrap" de roteamento e do seletor de organização:
 
 ```json
 {
   "user": { "id": "...", "email": "...", "name": "..." },
   "memberships": [
-    { "organization": { "id": "...", "type": "company", "name": "Widelab" }, "role": "collaborator" },
-    { "organization": { "id": "...", "type": "partner",  "name": "Restaurante Gomes" }, "role": "partner_admin" }
-  ],
-  "active_organization_id": "...",
-  "persona": "collaborator",
-  "permissions": ["..."]
+    {
+      "organization": { "id": "...", "type": "company", "name": "Widelab" },
+      "role": "collaborator"
+    },
+    {
+      "organization": {
+        "id": "...",
+        "type": "partner",
+        "name": "Restaurante Gomes"
+      },
+      "role": "partner_admin"
+    }
+  ]
 }
 ```
 
-`active_organization_id` reflete o header `X-Organization-Id`; sem header, o backend escolhe
-um default determinístico (ex.: primeiro vínculo) e o frontend confirma via seletor
-(`frontend/05`). Módulos habilitados entram neste payload na spec 05.
+`GET /api/organizacoes/{orgId}/eu` — minha situação **nesta** organização, que a casca usa
+pra montar navegação e liberar ações:
 
-## Endpoints de gestão de membros (`/api/memberships`)
+```json
+{
+  "role": "collaborator",
+  "persona": "collaborator",
+  "permissions": ["..."],
+  "modules": ["refeicoes"]
+}
+```
 
-| Método | Rota | Quem | Ação |
-|---|---|---|---|
-| `GET` | `/memberships` | `*_admin`/`hr` | lista membros da org ativa |
-| `PATCH` | `/memberships/{id}` | `company_admin`/`platform_admin` | muda papel/status |
+Sem "organização ativa" no servidor nem default a adivinhar — qual org é sempre o `orgId` do
+path. `modules` entra no payload por org na spec 05.
+
+## Endpoints de gestão de membros
+
+| Método  | Rota                                     | Quem                             | Ação                         |
+| ------- | ---------------------------------------- | -------------------------------- | ---------------------------- |
+| `GET`   | `/api/organizacoes/{orgId}/membros`      | `*_admin`/`hr`                   | lista membros da organização |
+| `PATCH` | `/api/organizacoes/{orgId}/membros/{id}` | `company_admin`/`platform_admin` | muda papel/status            |
 
 Criar membro é via convite (spec 06), não POST direto.
 
@@ -100,6 +120,8 @@ Criar membro é via convite (spec 06), não POST direto.
 1. `require_permission` nega (403) quando o papel do usuário na org ativa não tem a permissão,
    e permite quando tem.
 2. Um papel inválido pro tipo de organização é rejeitado na escrita do vínculo.
-3. `GET /api/me/context` reflete corretamente múltiplos vínculos e a persona da org ativa.
-4. Trocar `X-Organization-Id` muda a persona e as permissões retornadas sem novo login.
+3. `GET /api/me/contexto` reflete corretamente múltiplos vínculos; `GET /api/organizacoes/{orgId}/eu`
+   traz a persona e as permissões daquela organização.
+4. Acessar `/api/organizacoes/{orgId}/eu` de organizações diferentes devolve personas e
+   permissões diferentes, sem novo login.
 5. Um módulo de negócio consegue exigir `require_permission("...")` importando só de `core`.

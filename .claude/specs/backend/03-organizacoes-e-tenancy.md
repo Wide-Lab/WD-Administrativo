@@ -66,16 +66,19 @@ não corrupção silenciosa).
 
 ## Contexto de tenant
 
-A organização ativa de uma requisição vem do header **`X-Organization-Id`**. Uma dependency
-`current_organization` (em `access`, exposta via `core`):
+A organização ativa viaja no **path**: toda rota escopada por tenant mora sob
+`/api/organizacoes/{orgId}/...`. Uma dependency `current_organization` (em `access`, exposta
+via `core`):
 
-1. lê o header;
+1. lê o path param `orgId`;
 2. valida que o `current_user` tem vínculo (spec 04) naquela organização — senão **403**;
 3. devolve a organização.
 
-Escolha stateless (header, não sessão): o mesmo login atende N organizações e troca de
-contexto sem reemitir cookie (ver `frontend/05-selecao-de-organizacao.md`). `platform_admin`
-pode assumir qualquer organização (checagem afrouxada pra plataforma).
+Tenant no path, não em header nem sessão: a requisição é autoexplicativa, não existe
+"organização default" implícita a adivinhar, e a URL do frontend é compartilhável por
+organização (ver `frontend/05-selecao-de-organizacao.md`). O mesmo login atende N
+organizações — trocar de contexto é navegar pra outro `orgId`. `platform_admin` acessa
+qualquer `orgId` (checagem afrouxada pra plataforma).
 
 **Escopo por linha, banco e schema compartilhados.** Toda tabela de negócio carrega
 `organization_id` e é filtrada por `current_organization`. É o multi-tenant pragmático do
@@ -83,16 +86,23 @@ monólito modular; o `organization_id` viaja junto se um módulo for extraído (
 `00-visao-geral.md`). `core` ganha um helper de repositório tenant-scoped pra ninguém
 esquecer o filtro.
 
-## Endpoints (`/api/organizations`)
+## Endpoints
+
+Globais (plataforma):
 
 | Método | Rota | Quem | Ação |
 |---|---|---|---|
-| `POST` | `/organizations` | `platform_admin` | cria Empresa ou Parceiro (provisiona tenant) |
-| `GET` | `/organizations` | `platform_admin` | lista tenants |
-| `GET` | `/organizations/{id}` | membro da org ou `platform_admin` | detalhe |
-| `POST` | `/agreements` | `company_admin` | vincula um Parceiro à sua Empresa |
-| `GET` | `/agreements` | membro da Empresa/Parceiro | lista convênios do contexto |
-| `PATCH` | `/agreements/{id}` | `company_admin` | suspende/reativa |
+| `POST` | `/api/organizacoes` | `platform_admin` | cria Empresa ou Parceiro (provisiona tenant) |
+| `GET` | `/api/organizacoes` | `platform_admin` | lista tenants |
+| `GET` | `/api/organizacoes/{orgId}` | membro da org ou `platform_admin` | detalhe |
+
+Escopadas na Empresa (sob `/api/organizacoes/{orgId}`):
+
+| Método | Rota | Quem | Ação |
+|---|---|---|---|
+| `POST` | `/api/organizacoes/{orgId}/convenios` | `company_admin` | vincula um Parceiro à Empresa `{orgId}` |
+| `GET` | `/api/organizacoes/{orgId}/convenios` | membro da Empresa/Parceiro | lista convênios |
+| `PATCH` | `/api/organizacoes/{orgId}/convenios/{id}` | `company_admin` | suspende/reativa |
 
 (Os papéis citados são definidos na spec 04; esta spec pode subir com o guard ainda
 permissivo e apertar quando a 04 entrar.)
@@ -100,8 +110,8 @@ permissivo e apertar quando a 04 entrar.)
 ## Critérios de aceite
 
 1. Criar uma organização de cada tipo funciona; existe exatamente uma `platform`.
-2. Requisição com `X-Organization-Id` de uma organização em que o usuário não tem vínculo
-   responde 403.
+2. Requisição a `/api/organizacoes/{orgId}/...` de uma organização em que o usuário não tem
+   vínculo responde 403.
 3. Um convênio é único por `(company_id, partner_id)`; criar duplicado falha.
 4. Criar convênio com um `partner_id` que não é `partner` (ou `company_id` que não é
    `company`) falha no banco; mudar o `type` de uma organização referenciada por convênio

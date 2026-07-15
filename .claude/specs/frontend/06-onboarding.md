@@ -14,19 +14,19 @@ ou um cadastro de parceiro numa sessão ativa, caindo já na persona certa.
 Convidar/gerir membros de dentro da Empresa (é ação da persona Admin, entra com o módulo de
 gestão) e recuperação de senha (spec futura). Aqui só as telas públicas de *entrada*.
 
-## Telas (group `(auth)`, público)
+## Telas (group `(publico)`)
 
-- **`/convite/[token]`** — aceite de convite:
-  1. busca `GET /api/invitations/{token}`; se inválido/expirado, tela clara de "convite
+- **`/convites/[token]`** — aceite de convite:
+  1. busca `GET /api/convites/{token}`; se inválido/expirado, tela clara de "convite
      expirado" com caminho pra pedir novo, **sem** vazar se o e-mail tem conta.
   2. mostra Empresa, e-mail (read-only) e papel; formulário de `name?` + `password` (+
      confirmação), validado por zod com a política de senha combinada.
-  3. `POST /api/invitations/{token}/accept` → no sucesso, sessão emitida (cookie), redireciona
+  3. `POST /api/convites/{token}/aceitar` → no sucesso, sessão emitida (cookie), redireciona
      pra home da persona do papel aceito.
 
-- **`/parceiro/cadastro`** — auto-registro de Parceiro:
+- **`/parceiros/cadastro`** — auto-registro de Parceiro:
   formulário `{company_name, document?, admin: {name, email, password}}`, validado por zod;
-  `POST /api/partners/signup`; e-mail já usado → mensagem de conflito (409) apontando pro
+  `POST /api/parceiros/cadastro`; e-mail já usado → mensagem de conflito (409) apontando pro
   login; no sucesso, sessão emitida e cai na home do Parceiro.
 
 ## Primeiro acesso
@@ -38,7 +38,7 @@ está no lugar certo.
 ## Reuso
 
 Formulário de senha (regras, confirmação, medidor opcional) é um componente compartilhado
-entre `/convite/[token]`, `/parceiro/cadastro` e a troca de senha logada (spec 03) — mora em
+entre `/convites/[token]`, `/parceiros/cadastro` e a troca de senha logada (spec 03) — mora em
 `features/auth/components`, não duplicado.
 
 ## Critérios de aceite

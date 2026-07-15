@@ -7,7 +7,8 @@ vínculos + módulos habilitados. É onde o superapp vira "superapp".
 
 ## Objetivo
 
-Uma única app Next mostra a cara certa pra cada pessoa. A casca lê `GET /api/me/context`
+Uma única app Next mostra a cara certa pra cada pessoa. A casca lê `GET /api/me/contexto` e
+`GET /api/organizacoes/{orgId}/eu`
 uma vez e, a partir da **persona** e dos **módulos habilitados**, monta navegação e libera
 rotas. O usuário só vê o que tem direito — e o backend recusa o resto (403), então a casca
 é ergonomia, não segurança.
@@ -15,28 +16,36 @@ rotas. O usuário só vê o que tem direito — e o backend recusa o resto (403)
 ## Fora de escopo
 
 Troca de organização (spec 05) — aqui assume-se uma org ativa já resolvida. As telas
-*internas* de cada módulo de negócio (Refeições, Carro) são das fases 2+; esta spec entrega a
+_internas_ de cada módulo de negócio (Refeições, Carro) são das fases 2+; esta spec entrega a
 casca vazia por persona com navegação, estados e guarda.
 
-## Route groups (`src/app/`)
+## Estrutura de rotas (`src/app/`)
 
 ```
 app/
-  (auth)/login, /convite/[token], /parceiro/cadastro   # público (specs 03, 06)
-  (platform)/...      # persona Plataforma (admin Widelab): tenants, entitlements
-  (admin)/...         # persona Admin da Empresa: membros, convênios, config de módulos
-  (partner)/...       # persona Parceiro
-  (collaborator)/...  # persona Colaborador (mobile-first; candidato a PWA depois)
+  (publico)/entrar, /convites/[token], /parceiros/cadastro   # público (specs 03, 06)
+  plataforma/...                    # persona Plataforma (Widelab): tenants, entitlements — cross-tenant, sem orgId
+  organizacoes/[orgId]/
+    layout.tsx                      # carrega /api/organizacoes/{orgId}/eu, resolve a persona e monta a casca
+    page.tsx                        # home da persona
+    refeicoes/...                   # módulo (fase 2), sob o orgId
+    frota/...                       # módulo (fase 3), sob o orgId
 ```
 
-Cada group tem seu `layout.tsx` com a casca daquela persona (masthead, navegação lateral ou
-inferior). O conteúdo dos módulos entra dentro do group da persona a que serve.
+Coerente com o tenant no path (backend spec 03): tudo que é de uma organização vive sob
+`/organizacoes/[orgId]/`. O `layout.tsx` desse nível lê `GET /api/organizacoes/{orgId}/eu`,
+**resolve a persona** (Admin da Empresa / Parceiro / Colaborador, conforme tipo da org +
+papel) e monta a casca certa (masthead, navegação lateral ou inferior). A área da Plataforma
+é cross-tenant e fica fora do `orgId`. A persona Colaborador é mobile-first (candidata a PWA).
 
 ## Feature `context` (`features/context/`)
 
-- `api.ts` — `getContext()` → `GET /api/me/context`.
-- `use-context.ts` — TanStack Query; expõe `{ user, memberships, activeOrg, persona,
-  permissions, modules }`. Fonte única de autorização no cliente.
+- `api.ts` — `getContext()` → `GET /api/me/contexto` (global: usuário + vínculos);
+  `getOrgContext(orgId)` → `GET /api/organizacoes/{orgId}/eu` (persona, permissões, módulos
+  daquela org).
+- `use-context.ts` / `use-org-context.ts` — TanStack Query; juntos expõem
+  `{ user, memberships }` e `{ persona, permissions, modules }` da org da URL. Fonte única de
+  autorização no cliente.
 - `nav.ts` (puro, testado) — dado `persona` + `modules` + descritores de nav dos módulos,
   produz a lista de itens de navegação. Módulo sem entitlement **não** entra na lista.
 
@@ -62,8 +71,8 @@ ativa) — o conteúdo real chega com os módulos. A persona `collaborator` já 
 
 ## Critérios de aceite
 
-1. Com um contexto de `collaborator` numa Empresa com `meals` habilitado, a casca do
-   Colaborador aparece com o item de Refeições; sem `meals`, o item some.
+1. Com um contexto de `collaborator` numa Empresa com `refeicoes` habilitado, a casca do
+   Colaborador aparece com o item de Refeições; sem `refeicoes`, o item some.
 2. Um `platform_admin` vê a persona Plataforma; um `partner_admin`, a do Parceiro.
 3. Rota de módulo não habilitado mostra "módulo não disponível" e nunca dispara chamada que
    dependa dele.
