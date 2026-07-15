@@ -23,14 +23,13 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
+# A imagem node já traz o usuário não-root `node` (UID 1000); reusamos ele.
 # Artefatos do build standalone (ver output: 'standalone' em next.config.ts).
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 
-RUN useradd --create-home --uid 1000 appuser \
-    && chown -R appuser:appuser /app
-USER appuser
+USER node
 
 EXPOSE 3000
 
