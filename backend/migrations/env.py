@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from src.core.config import get_config
 from src.core.database.base_model import Base
+from src.modules.access.adapters.db import models as _access_models  # noqa: F401
 from src.modules.auth.adapters.db import models as _auth_models  # noqa: F401
 
 # Importe aqui os models de cada módulo pra que entrem no autogenerate.
