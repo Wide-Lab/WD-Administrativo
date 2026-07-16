@@ -11,8 +11,8 @@ import {
 import { Input } from '#/components/ui/input'
 import { Skeleton } from '#/components/ui/skeleton'
 
-// Vitrine do design system (spec 02). É uma superfície de verificação — a rota
-// `/` recebe o login de verdade na spec 03.
+// Vitrine do design system (spec 02) — superfície de verificação dos tokens e primitivos.
+// Saiu de `/` na spec 03, quando a raiz virou área autenticada.
 const swatches = [
   ['bg', 'bg-bg'],
   ['surface', 'bg-surface'],
