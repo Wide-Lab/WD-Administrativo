@@ -27,7 +27,7 @@ export function organizationHomePath(orgId: string): string {
 type BuildNavParams = {
   orgId: string
   persona: Persona
-  /** As chaves habilitadas **desta organização** (do `/eu`). */
+  /** As chaves habilitadas **desta organização** (do `/me`). */
   modules: readonly string[]
   catalog: readonly ModuleNavDescriptor[]
 }

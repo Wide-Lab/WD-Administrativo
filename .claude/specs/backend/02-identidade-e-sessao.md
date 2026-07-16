@@ -71,7 +71,7 @@ tocar** em nada de `access`/autorização. Essa fronteira é a decisão registra
 | `PUT`  | `/api/me/password` | logado, `{current_password, new_password}` → troca senha                      |
 
 `GET /api/me` devolve **só identidade**. Vínculos, personas e módulos habilitados vêm de
-`GET /api/me/contexto` e `GET /api/organizacoes/{orgId}/eu` (specs 04/05).
+`GET /api/me/contexto` e `GET /api/organizacoes/{orgId}/me` (specs 04/05).
 
 ## CLI
 

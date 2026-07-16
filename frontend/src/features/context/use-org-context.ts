@@ -31,7 +31,7 @@ type UseOrgContextResult = {
 /** Eu na organização da URL: persona, permissões e módulos habilitados dela.
  *
  *  Fonte única de autorização no cliente. Duas queries em vez de uma porque são duas perguntas
- *  com donos diferentes — "quem sou eu aqui" (`/eu`) e "que organização é esta" (`/{orgId}`);
+ *  com donos diferentes — "quem sou eu aqui" (`/me`) e "que organização é esta" (`/{orgId}`);
  *  o TanStack as cacheia por chave e a segunda serve toda persona que abrir o mesmo tenant. */
 export function useOrgContext(): UseOrgContextResult {
   const orgId = useOrgId()

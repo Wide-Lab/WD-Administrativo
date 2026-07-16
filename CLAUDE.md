@@ -12,18 +12,18 @@ empresas. Backend FastAPI + frontend Next, monólito modular.
 ## A fonte da verdade é `.claude/specs/`, não este arquivo
 
 Antes de implementar qualquer coisa não trivial, leia `.claude/specs/00-visao-geral.md`
-inteiro e a spec numerada relevante. As specs registram não só o *quê*, mas o **porquê**, o
+inteiro e a spec numerada relevante. As specs registram não só o _quê_, mas o **porquê**, o
 que foi decidido **não** fazer ainda, e critérios de aceite explícitos. Este `CLAUDE.md` é um
 mapa de navegação rápida — quando ele e uma spec discordarem, **a spec vence**.
 
-| # | Backend | | Frontend | |
-|---|---|---|---|---|
-| 01 | fundação (FastAPI hexagonal) | ✅ | fundação (Next App Router) | ✅ |
-| 02 | identidade e sessão (`auth`) | ✅ | design system | ✅ |
-| 03 | organizações e tenancy (`access`) | ✅ | login e sessão | ✅ |
-| 04 | membros e autorização (`access`) | ✅ | casca e personas | ✅ |
-| 05 | módulos e entitlements (`access`) | ✅ | seleção de organização | ✅ |
-| 06 | convites e onboarding (`access`) | ✅ | onboarding | ⬜¹ |
+| #   | Backend                           |     | Frontend                   |     |
+| --- | --------------------------------- | --- | -------------------------- | --- |
+| 01  | fundação (FastAPI hexagonal)      | ✅  | fundação (Next App Router) | ✅  |
+| 02  | identidade e sessão (`auth`)      | ✅  | design system              | ✅  |
+| 03  | organizações e tenancy (`access`) | ✅  | login e sessão             | ✅  |
+| 04  | membros e autorização (`access`)  | ✅  | casca e personas           | ✅  |
+| 05  | módulos e entitlements (`access`) | ✅  | seleção de organização     | ✅  |
+| 06  | convites e onboarding (`access`)  | ✅  | onboarding                 | ⬜¹ |
 
 ¹ **a próxima entrega.** O backend já convida e aceita, mas ninguém convida pela tela: o
 `POST /convites` e o aceite por token não têm UI, e o auto-cadastro de Parceiro também não.
@@ -55,9 +55,9 @@ O que existe hoje:
   (convênio), `memberships` (usuário↔org↔papel), `module_entitlements` (Empresa↔módulo) e
   `invitations` (convite↔papel). Rotas: `POST`/`GET /api/organizacoes`,
   `GET /api/organizacoes/{orgId}`, `/convenios` (criar, listar, suspender/reativar),
-  `GET /api/me/contexto`, `GET /api/organizacoes/{orgId}/eu`,
+  `GET /api/me/contexto`, `GET /api/organizacoes/{orgId}/me`,
   `GET`/`PATCH /api/organizacoes/{orgId}/membros`, `GET`/`PUT`/`DELETE
-  /api/organizacoes/{orgId}/modulos[/{chave}]`, `POST /api/organizacoes/{orgId}/convites`, e as
+/api/organizacoes/{orgId}/modulos[/{chave}]`, `POST /api/organizacoes/{orgId}/convites`, e as
   **públicas** `GET /api/convites/{token}`, `POST /api/convites/{token}/aceitar` e
   `POST /api/parceiros/cadastro`. Migrations `0002_organizations` — que **semeia a organização
   `platform`** (`01890000-0000-7000-8000-000000000001`) —, `0003_memberships`,
@@ -79,7 +79,7 @@ O que existe hoje:
   ausência é negação. Só Empresa contrata, e quem garante é o banco (FK composta contra
   `organizations(id, type)`, tipo fixado em coluna gerada). `require_module` (`core/modules/`)
   nega com 403 e **não afrouxa pra `platform_admin`** — diferente de `require_permission`, a
-  pergunta é o que o *tenant* comprou, não quem é o usuário. Só `platform_admin` liga/desliga
+  pergunta é o que o _tenant_ comprou, não quem é o usuário. Só `platform_admin` liga/desliga
   (`modules.read`/`modules.write`).
 - **Módulo de negócio pluga com uma linha:** `mount_module(api, <ModuleDescriptor>)` em
   `mount_routes` registra o módulo no `ModuleRegistry` e pendura as rotas sob
@@ -99,7 +99,7 @@ O que existe hoje:
 - `frontend/` — scaffold Next, design system (tokens em `src/styles.css`, primitivos shadcn,
   vitrine em `/design-system`), feature `auth` (`(publico)/entrar`, `use-session`, guarda de
   rota) e feature `context`: `use-context` (`/api/me/contexto`), `use-org-context`
-  (`/eu` + nome da org), `buildNav`/`homePathFor` (puras, testadas), `AppShell`, `Can`,
+  (`/me` + nome da org), `buildNav`/`homePathFor` (puras, testadas), `AppShell`, `Can`,
   `ModuleGuard`, `OrganizationSwitcher` (o seletor do masthead) e `lib/last-org.ts` (o último
   `orgId`, único uso de `localStorage`). Rotas: `/` **roteia** pra home da persona (não é tela), `/plataforma`
   (cross-tenant, guarda por vínculo de plataforma) e `/organizacoes/[orgId]/*`, cujo `layout`
@@ -112,10 +112,10 @@ O que existe hoje:
   ordem que a `frontend/04` fixou. Só se lembra `orgId` que o backend deixou abrir, então um que
   respondeu 403 nunca vira destino. Ver `Como ficou` da `frontend/05`.
 - **Não há route group por persona** (`(admin)`/`(parceiro)`/`(colaborador)`), e é decisão:
-  route group é estático, persona é runtime (vem do `/eu`). O seam por persona mora no
+  route group é estático, persona é runtime (vem do `/me`). O seam por persona mora no
   `AppShell` e no `buildNav`. Ver `Como ficou` da `frontend/04`.
 - **Label e path de módulo moram no frontend** (`features/context/modules.ts`), não no contexto:
-  o `/eu` devolve só as **chaves** habilitadas, e o `ModuleNav` do descritor só sai pelo
+  o `/me` devolve só as **chaves** habilitadas, e o `ModuleNav` do descritor só sai pelo
   `GET /modulos`, que é de `platform_admin`. Ligar o flag ainda faz o item aparecer sem deploy —
   quem decide visibilidade é o entitlement. Mexeu no descritor do backend, mexe no catálogo.
 - `docker-compose.yml` + `nginx/` — stack completa (Postgres, backend, frontend, nginx).
@@ -125,11 +125,11 @@ O que existe hoje:
 ## Arquitetura (o retrato grande, que exige ler várias specs)
 
 - **Monólito modular multi-tenant.** Um backend, um frontend, um Postgres. A unidade de
-  deploy é o container, não o módulo. *Seams* de extração desenhados, não usados
+  deploy é o container, não o módulo. _Seams_ de extração desenhados, não usados
   (`00-visao-geral.md`).
 - **Kernel da plataforma = dois módulos:** `auth` (identidade/sessão) e `access` (organizações,
   membros, autorização, entitlements, onboarding). Os **apps de negócio** (`refeicoes`,
-  `frota`) plugam depois e dependem **só** de `core` + dos *contracts* públicos do kernel —
+  `frota`) plugam depois e dependem **só** de `core` + dos _contracts_ públicos do kernel —
   `current_user`, `current_organization`, `require_permission`, `require_module` — e **nunca
   um do outro**. É isso que mantém o seam de extração limpo.
 - **Autorização é o núcleo** — o oposto da Central (`autentica, não autoriza`). Empresa,
@@ -143,7 +143,7 @@ O que existe hoje:
 - **Identidade própria atrás de porta trocável:** login local agora (`PasswordAuthenticator`);
   SSO da Central (JWT RS256/JWKS) plugável depois sem tocar autorização.
 - **Frontend:** uma app Next só; personas (Admin da Empresa / Parceiro / Colaborador /
-  Plataforma) resolvidas de `GET /api/organizacoes/{orgId}/eu`; navegação derivada dos
+  Plataforma) resolvidas de `GET /api/organizacoes/{orgId}/me`; navegação derivada dos
   módulos habilitados. Trocar de organização é navegar pra outro `orgId`.
 
 ## Convenções que não se negociam
@@ -182,7 +182,7 @@ O que existe hoje:
   Papel/tenant **nunca** entram no token de sessão — mudam a cada request.
 - **Schema só via Alembic**, sem `create_all`. Nomes de tabela `snake_case` no plural, **sem**
   prefixo `T0xx`. E-mail é `CITEXT`; senha é **Argon2id**, nunca bcrypt.
-- **Rotas em português; tenant no path.** `/api/me*` é o usuário global; `/api/organizacoes/{orgId}/eu`
+- **Rotas em português; tenant no path.** `/api/me*` é o usuário global; `/api/organizacoes/{orgId}/me`
   é "eu nesta organização". Nomes de tabela, coluna e valores de enum seguem em **inglês**.
 - **Organização tem um tipo só** (`platform`/`company`/`partner`), definido na criação e
   **imutável**; a integridade dos lados do convênio é garantida no banco (FK composta), ver
@@ -203,19 +203,19 @@ Definidos em `backend/01-fundacao.md` e `frontend/01-fundacao.md`; o scaffold ex
 eles valem. `docker compose up db` sobe só o Postgres (backend/frontend rodam nativos em dev);
 `docker compose up` sobe a stack inteira atrás do nginx.
 
-| Backend (de `backend/`, via `uv run`) | |
-|---|---|
-| `uvicorn src.main:app --reload` | sobe em dev (`:8000`) |
-| `ruff format .` / `ruff check .` / `mypy src` | formata / lint / typecheck |
-| `alembic revision --autogenerate -m "msg"` / `alembic upgrade head` | migration |
-| `python -m src.modules.auth.cli create-user --email … --name …` | cria usuário (bootstrap) |
+| Backend (de `backend/`, via `uv run`)                                 |                                                                      |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `uvicorn src.main:app --reload`                                       | sobe em dev (`:8000`)                                                |
+| `ruff format .` / `ruff check .` / `mypy src`                         | formata / lint / typecheck                                           |
+| `alembic revision --autogenerate -m "msg"` / `alembic upgrade head`   | migration                                                            |
+| `python -m src.modules.auth.cli create-user --email … --name …`       | cria usuário (bootstrap)                                             |
 | `python -m src.modules.access.cli grant --email … --role … [--org …]` | vincula usuário a organização (bootstrap; sem `--org`, a `platform`) |
 
-| Frontend (de `frontend/`, via `npm`) | |
-|---|---|
-| `run dev` | sobe em dev (`:3000`, rewrite `/api/*` → backend) |
-| `run typecheck` / `run lint` / `run test` | tsc / ESLint / Vitest |
-| `run build` | build de produção |
+| Frontend (de `frontend/`, via `npm`)      |                                                   |
+| ----------------------------------------- | ------------------------------------------------- |
+| `run dev`                                 | sobe em dev (`:3000`, rewrite `/api/*` → backend) |
+| `run typecheck` / `run lint` / `run test` | tsc / ESLint / Vitest                             |
+| `run build`                               | build de produção                                 |
 
 ## Skills deste projeto
 

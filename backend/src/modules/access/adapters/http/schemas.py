@@ -129,7 +129,7 @@ class MyContextResponse(BaseModel):
 
 
 class MyMembershipResponse(BaseModel):
-    """`GET /api/organizacoes/{orgId}/eu` — minha situação **nesta** organização.
+    """`GET /api/organizacoes/{orgId}/me` — minha situação **nesta** organização.
 
     `modules` entrou aqui na spec 05, como a 04 previu. Um `[]` agora significa o que diz — a
     Empresa não contratou nada —, e não mais "entitlement não existe"."""
@@ -168,7 +168,7 @@ class CatalogModuleResponse(BaseModel):
     """Um módulo do catálogo: o que a **plataforma** sabe oferecer, ligado ou não.
 
     Sem `permissions`: o catálogo diz o que dá pra vender, e as capabilities de dentro do
-    módulo são pergunta do `/eu` de cada pessoa, não desta lista."""
+    módulo são pergunta do `/me` de cada pessoa, não desta lista."""
 
     key: str
     name: str

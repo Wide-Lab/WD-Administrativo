@@ -15,7 +15,7 @@ class ChangePasswordRequest(BaseModel):
 
 class MeResponse(BaseModel):
     """Só identidade. Vínculos, personas e módulos habilitados vêm de `GET /api/me/contexto`
-    e `GET /api/organizacoes/{orgId}/eu` (specs 04/05)."""
+    e `GET /api/organizacoes/{orgId}/me` (specs 04/05)."""
 
     id: uuid.UUID
     email: EmailStr

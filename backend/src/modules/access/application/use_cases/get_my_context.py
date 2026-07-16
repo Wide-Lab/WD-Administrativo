@@ -23,7 +23,7 @@ class GetMyContextUseCase:
         É o único ponto do sistema que enxerga **através** das organizações, e é por isso que
         não é escopado por tenant: a pergunta aqui é justamente "onde eu entro?", que precede
         a escolha do `orgId`. Papel e permissões *dentro* de uma organização vêm do
-        `GET /api/organizacoes/{orgId}/eu`.
+        `GET /api/organizacoes/{orgId}/me`.
 
         Args:
             user_id (UserId):

@@ -4,7 +4,7 @@ import { safeNextPath } from '#/features/auth/lib/next-path'
 
 describe('safeNextPath', () => {
   it('preserva caminho interno', () => {
-    expect(safeNextPath('/organizacoes/abc/eu')).toBe('/organizacoes/abc/eu')
+    expect(safeNextPath('/organizacoes/abc/me')).toBe('/organizacoes/abc/me')
   })
 
   it('preserva query string do destino', () => {

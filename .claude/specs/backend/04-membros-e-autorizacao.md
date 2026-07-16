@@ -93,7 +93,7 @@ Dois níveis, coerentes com o tenant no path:
 }
 ```
 
-`GET /api/organizacoes/{orgId}/eu` — minha situação **nesta** organização, que a casca usa
+`GET /api/organizacoes/{orgId}/me` — minha situação **nesta** organização, que a casca usa
 pra montar navegação e liberar ações:
 
 ```json
@@ -122,9 +122,9 @@ Criar membro é via convite (spec 06), não POST direto.
 1. `require_permission` nega (403) quando o papel do usuário na org ativa não tem a permissão,
    e permite quando tem.
 2. Um papel inválido pro tipo de organização é rejeitado na escrita do vínculo.
-3. `GET /api/me/contexto` reflete corretamente múltiplos vínculos; `GET /api/organizacoes/{orgId}/eu`
+3. `GET /api/me/contexto` reflete corretamente múltiplos vínculos; `GET /api/organizacoes/{orgId}/me`
    traz a persona e as permissões daquela organização.
-4. Acessar `/api/organizacoes/{orgId}/eu` de organizações diferentes devolve personas e
+4. Acessar `/api/organizacoes/{orgId}/me` de organizações diferentes devolve personas e
    permissões diferentes, sem novo login.
 5. Um módulo de negócio consegue exigir `require_permission("...")` importando só de `core`.
 
@@ -153,14 +153,14 @@ previa:
   Os nomes eram "ex.:", ilustrativos — a forma do contrato (guard por capability, não por
   papel) está preservada.
 - **`platform_admin` **não** recebe `agreements.write`, de propósito.** Conveniar é ato da
-  Empresa e o convênio carrega os termos *dela*; a plataforma provisiona tenants e conserta
+  Empresa e o convênio carrega os termos _dela_; a plataforma provisiona tenants e conserta
   vínculos, não assina contrato no lugar do cliente. Bate com a tabela da spec 03, que dá
   `/convenios` a `company_admin`. Verificado: `platform_admin` → `POST /convenios` responde 403.
 - **`finance`, `manager` e `partner_operator` saem sem permissão nenhuma de kernel**, e isso é
   esperado, não esquecimento: o que esses papéis fazem (aprovar fatura, ler catálogo) são
   capabilities de módulo de negócio, que a spec 05 deixa cada módulo declarar. Eles existem
   aqui porque o papel é o que o convite (spec 06) atribui, e porque já mudam a persona.
-- **`GET /api/organizacoes/{orgId}/eu` não devolve `modules`.** O payload de exemplo da spec o
+- **`GET /api/organizacoes/{orgId}/me` não devolve `modules`.** O payload de exemplo da spec o
   mostra, mas o texto logo abaixo diz que "`modules` entra no payload por org na spec 05".
   Devolver `[]` agora afirmaria que o tenant não tem módulo nenhum, quando a verdade é que
   entitlement não existe — e o frontend não teria como distinguir as duas coisas.
@@ -184,10 +184,10 @@ previa:
   cria vínculo (criar membro é convite, spec 06) e nenhuma rota de plataforma responde sem um
   `platform_admin` existir. A spec 02 já tinha deixado isso pra cá ("O vínculo com a organização
   plataforma é dado pela spec 03/04"), então: `python -m src.modules.access.cli grant --email …
-  --role … [--org …]`; sem `--org`, o alvo é a organização `platform`, que é única. Ela resolve o
-  e-mail por SQL cru em `users` — a regra que vale é a de *import* entre módulos, e nenhuma
+--role … [--org …]`; sem `--org`, o alvo é a organização `platform`, que é única. Ela resolve o
+  e-mail por SQL cru em `users` — a regra que vale é a de _import_ entre módulos, e nenhuma
   classe do `auth` atravessa a fronteira.
-- **`/eu` de um `platform_admin` numa Empresa onde ele não tem vínculo** devolve papel
+- **`/me` de um `platform_admin` numa Empresa onde ele não tem vínculo** devolve papel
   `platform_admin` e persona `platform`, em vez de inventar um vínculo local. Ele alcança
   qualquer tenant (a checagem afrouxada que a spec 03 pediu) sem ter linha em `memberships`
   daquela Empresa; o `PermissionReader` **soma** as duas fontes, e é isso que faz a linha
@@ -197,7 +197,7 @@ previa:
   decisão de produto: desativar uma organização derruba todo mundo nela sem tocar vínculo por
   vínculo, e desativar um vínculo derruba a pessoa sem apagar histórico. Verificado: com o
   vínculo `disabled`, a Ana levou 403 na Empresa e a Empresa sumiu do `/me/contexto` — o
-  contexto lista o que a pessoa *pode abrir agora*, senão o seletor de organização ofereceria
+  contexto lista o que a pessoa _pode abrir agora_, senão o seletor de organização ofereceria
   uma porta trancada.
 - **`require_platform_admin` é o único guard que não passa por `require_permission`**, e a razão
   é estrutural: `require_permission` resolve a permissão dentro da organização do path, e

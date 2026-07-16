@@ -25,7 +25,7 @@ function ShellSkeleton() {
   )
 }
 
-/** Sem vínculo compatível nesta organização (403 no `/eu`): manda pra home da persona real.
+/** Sem vínculo compatível nesta organização (403 no `/me`): manda pra home da persona real.
  *
  *  Redirecionar, e não mostrar "acesso negado", porque o caso comum não é invasão — é uma URL
  *  velha de um vínculo que acabou, ou um link colado de outra pessoa. Não há laço: o backend
@@ -89,7 +89,7 @@ function OrgContextBoundary({ children }: { children: ReactNode }) {
 /** A casca de tudo que vive sob `/organizacoes/[orgId]`.
  *
  *  Duas camadas, e a ordem importa: `RequireSession` primeiro, pra quem não está logado ir pro
- *  login em vez de gastar um 401 no `/eu`; o contexto depois, porque só faz sentido perguntar
+ *  login em vez de gastar um 401 no `/me`; o contexto depois, porque só faz sentido perguntar
  *  "quem sou eu aqui" havendo um "eu". */
 export function OrgShell({ children }: { children: ReactNode }) {
   return (

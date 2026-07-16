@@ -70,7 +70,7 @@ persona (**2**) e o 403 caindo em reseleção (**5**).
 
 O caso de teste ficou bom o bastante pra merecer registro: `sel05@acme.com.br` é `collaborator`
 na Acme **e** `partner_admin` no Restaurante Gomes — o "Colaborador aqui e admin ali" da
-`Entrega`, literal. Verificado por `curl`: o `/eu` devolve `persona: "collaborator"` +
+`Entrega`, literal. Verificado por `curl`: o `/me` devolve `persona: "collaborator"` +
 `modules: ["refeicoes"]` numa, e `persona: "partner"` + `modules: []` na outra. As duas cascas
 são **formas diferentes** (barra inferior mobile-first × barra lateral), então a troca prova o
 re-resolve a olho nu. E a Widelab, onde ele não tem vínculo, responde **403** de verdade.
@@ -80,7 +80,7 @@ O que a implementação decidiu, e a spec não previa:
 - **O último `orgId` ganha do atalho da Plataforma, e isso muda uma decisão da `04`.** A `04`
   fixou "vínculo de plataforma ganha da lista"; agora a ordem é **onde a pessoa estava** > mesa da
   Plataforma > primeiro vínculo. O critério 4 pede que o último `orgId` "oriente o redirect", e
-  quem tem vínculo de plataforma *e* de tenant tem 2+ vínculos — a regra desta spec o alcança. É
+  quem tem vínculo de plataforma _e_ de tenant tem 2+ vínculos — a regra desta spec o alcança. É
   reversível pelo seletor, e não atropela quem só usa a mesa: **a `/plataforma` esquece o último
   `orgId`** (`forgetLastOrgId`), então quem trabalha lá nunca guarda nenhum e segue caindo lá.
   Sem esse esquecimento, um `platform_admin` que visitasse um tenant **uma vez** cairia nele pra
@@ -94,7 +94,7 @@ O que a implementação decidiu, e a spec não previa:
   `localStorage` (não existe no SSR, e **lança** com armazenamento bloqueado — Safari privado,
   iframe), porque um palpite de rota não vale derrubar a casca. Sem storage, degrada pro primeiro
   vínculo. Nada disso está coberto.
-- **O seletor mostra tipo *e* papel — a spec pedia "tipo e nome", mas exemplificava com papel.**
+- **O seletor mostra tipo _e_ papel — a spec pedia "tipo e nome", mas exemplificava com papel.**
   Os exemplos do texto ("Widelab — Colaborador", "Restaurante Gomes — Parceiro") não são a mesma
   regra: o primeiro é papel, o segundo é tipo. Entraram os dois ("Empresa · Colaborador") porque
   cada um resolve metade: o tipo separa "Acme, a Empresa" de "Gomes, o Parceiro"; o papel separa

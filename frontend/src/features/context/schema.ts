@@ -44,7 +44,7 @@ export const myContextSchema = z.object({
   memberships: z.array(contextMembershipSchema),
 })
 
-/** `GET /api/organizacoes/{orgId}/eu` — eu **nesta** organização. Fonte única de autorização
+/** `GET /api/organizacoes/{orgId}/me` — eu **nesta** organização. Fonte única de autorização
  *  no cliente: `permissions` libera ações, `modules` monta navegação. */
 export const orgContextSchema = z.object({
   role: roleSchema,
@@ -55,7 +55,7 @@ export const orgContextSchema = z.object({
   modules: z.array(z.string()),
 })
 
-/** `GET /api/organizacoes/{orgId}` — só o que a casca pinta. O `/eu` não devolve o nome da
+/** `GET /api/organizacoes/{orgId}` — só o que a casca pinta. O `/me` não devolve o nome da
  *  organização, e o `/me/contexto` não a lista para um `platform_admin` sem vínculo nela. */
 export const organizationSchema = z.object({
   id: z.string().uuid(),

@@ -7,7 +7,7 @@
  * a composição deles.
  *
  * **Por que o label e o path moram aqui, e não vêm do backend.** A spec `frontend/04` supõe que
- * a nav venha "dos descritores expostos no contexto", mas o `GET /api/organizacoes/{orgId}/eu`
+ * a nav venha "dos descritores expostos no contexto", mas o `GET /api/organizacoes/{orgId}/me`
  * devolve `modules` como **lista de chaves** — os `ModuleNav` do descritor só saem pelo
  * `GET /api/organizacoes/{orgId}/modulos`, que a `backend/05` fechou para `platform_admin`.
  * Um `collaborator` leva 403 lá, e é justamente ele quem precisa do menu.

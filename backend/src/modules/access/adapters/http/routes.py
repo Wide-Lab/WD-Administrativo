@@ -83,7 +83,7 @@ async def my_context(
     """Meus vínculos — o bootstrap de roteamento e do seletor de organização.
 
     Global, e não escopado por tenant: é a pergunta que **precede** a escolha do `orgId`.
-    Papel e permissões *dentro* de uma organização vêm do `GET /api/organizacoes/{orgId}/eu`.
+    Papel e permissões *dentro* de uma organização vêm do `GET /api/organizacoes/{orgId}/me`.
     401 se não logado."""
 
     use_case = GetMyContextUseCase(uow=uow)
@@ -95,7 +95,7 @@ async def my_context(
     )
 
 
-@router.get("/organizacoes/{orgId}/eu")
+@router.get("/organizacoes/{orgId}/me")
 async def my_membership(
     user: CurrentUserDep,
     organization: CurrentOrganizationDep,
@@ -250,7 +250,7 @@ async def list_modules(
     """Os módulos habilitados da Empresa do path, mais o catálogo do que dá pra habilitar.
 
     Visão de plataforma: é a tela de quem vende. Quem consome módulo não pergunta aqui — o
-    `GET /api/organizacoes/{orgId}/eu` já devolve as chaves habilitadas."""
+    `GET /api/organizacoes/{orgId}/me` já devolve as chaves habilitadas."""
 
     use_case = ListModulesUseCase(uow=uow)
     return OrganizationModulesResponse.from_result(await use_case.execute(organization))

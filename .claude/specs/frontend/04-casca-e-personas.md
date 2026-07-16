@@ -10,7 +10,7 @@ vínculos + módulos habilitados. É onde o superapp vira "superapp".
 ## Objetivo
 
 Uma única app Next mostra a cara certa pra cada pessoa. A casca lê `GET /api/me/contexto` e
-`GET /api/organizacoes/{orgId}/eu`
+`GET /api/organizacoes/{orgId}/me`
 uma vez e, a partir da **persona** e dos **módulos habilitados**, monta navegação e libera
 rotas. O usuário só vê o que tem direito — e o backend recusa o resto (403), então a casca
 é ergonomia, não segurança.
@@ -28,14 +28,14 @@ app/
   (publico)/entrar, /convites/[token], /parceiros/cadastro   # público (specs 03, 06)
   plataforma/...                    # persona Plataforma (Widelab): tenants, entitlements — cross-tenant, sem orgId
   organizacoes/[orgId]/
-    layout.tsx                      # carrega /api/organizacoes/{orgId}/eu, resolve a persona e monta a casca
+    layout.tsx                      # carrega /api/organizacoes/{orgId}/me, resolve a persona e monta a casca
     page.tsx                        # home da persona
     refeicoes/...                   # módulo (fase 2), sob o orgId
     frota/...                       # módulo (fase 3), sob o orgId
 ```
 
 Coerente com o tenant no path (backend spec 03): tudo que é de uma organização vive sob
-`/organizacoes/[orgId]/`. O `layout.tsx` desse nível lê `GET /api/organizacoes/{orgId}/eu`,
+`/organizacoes/[orgId]/`. O `layout.tsx` desse nível lê `GET /api/organizacoes/{orgId}/me`,
 **resolve a persona** (Admin da Empresa / Parceiro / Colaborador, conforme tipo da org +
 papel) e monta a casca certa (masthead, navegação lateral ou inferior). A área da Plataforma
 é cross-tenant e fica fora do `orgId`. A persona Colaborador é mobile-first (candidata a PWA).
@@ -43,7 +43,7 @@ papel) e monta a casca certa (masthead, navegação lateral ou inferior). A áre
 ## Feature `context` (`features/context/`)
 
 - `api.ts` — `getContext()` → `GET /api/me/contexto` (global: usuário + vínculos);
-  `getOrgContext(orgId)` → `GET /api/organizacoes/{orgId}/eu` (persona, permissões, módulos
+  `getOrgContext(orgId)` → `GET /api/organizacoes/{orgId}/me` (persona, permissões, módulos
   daquela org).
 - `use-context.ts` / `use-org-context.ts` — TanStack Query; juntos expõem
   `{ user, memberships }` e `{ persona, permissions, modules }` da org da URL. Fonte única de
@@ -92,22 +92,22 @@ quê. O que a implementação decidiu, e a spec não previa:
 - **Os metadados de navegação vieram de um catálogo do frontend, não do contexto — a premissa
   da spec não era alcançável.** O texto diz que os itens "vêm dos descritores expostos no
   contexto (`modules` + metadados de nav do `ModuleDescriptor`)". Mas o
-  `GET /api/organizacoes/{orgId}/eu` devolve `modules` como **lista de chaves**
+  `GET /api/organizacoes/{orgId}/me` devolve `modules` como **lista de chaves**
   (`["refeicoes"]`), e o `ModuleNav` (label/path/icon) só sai pelo
   `GET /api/organizacoes/{orgId}/modulos` — que a `backend/05` fechou para `platform_admin`.
   Um `collaborator` leva **403** lá, e é exatamente ele quem precisa do menu. Então o label e o
   path moram em `features/context/modules.ts`, chaveados pela chave do módulo.
-  Mudar o payload do `/eu` teria sido a outra saída, e foi recusada: ela quebra o contrato que o
+  Mudar o payload do `/me` teria sido a outra saída, e foi recusada: ela quebra o contrato que o
   critério 3 da `backend/05` verificou, e o "sem deploy" **não se perde** — quem decide a
   visibilidade continua sendo o entitlement, e o catálogo só diz como o item se chama. As telas
   do módulo têm de existir no frontend de qualquer forma; um label vindo do servidor apontaria
-  para uma rota que só um deploy cria. Se um dia o `/eu` devolver os descritores (um módulo
+  para uma rota que só um deploy cria. Se um dia o `/me` devolver os descritores (um módulo
   vendido a quem não fez deploy do frontend?), é spec própria — o `buildNav` já recebe o
   catálogo por parâmetro, então a troca é no chamador.
 - **Não existem route groups por persona, e é decisão, não esquecimento.** A `00-visao-geral`
   previa `(admin)`/`(parceiro)`/`(colaborador)`; a estrutura desta spec já dizia outra coisa
   (`organizacoes/[orgId]/layout.tsx` "resolve a persona"), e ela venceu por um motivo estrutural:
-  **route group é estático e persona é runtime** — ela vem do `/eu`, depois do JS carregar. Um
+  **route group é estático e persona é runtime** — ela vem do `/me`, depois do JS carregar. Um
   group por persona exigiria saber quem é a pessoa para escolher a URL, e a URL é o que dá o
   `orgId` que responde quem ela é. O seam por persona segue existindo, mas mora no `AppShell` e
   no `buildNav`, não na árvore de rotas. O `(publico)` foi criado, esse sim, e `/entrar` mudou de
@@ -121,26 +121,26 @@ quê. O que a implementação decidiu, e a spec não previa:
   que ainda não aceitou (spec 06) ou quem teve o vínculo desativado: o backend omite do contexto
   o que não dá pra abrir, então `memberships: []` é uma resposta normal, e mandar essa pessoa pro
   login seria um laço.
-- **403 no `/eu` redireciona pra home real, em vez de "acesso negado".** A spec pede isso pra
+- **403 no `/me` redireciona pra home real, em vez de "acesso negado".** A spec pede isso pra
   "group de persona sem vínculo compatível"; vale igual pro tenant alheio, porque o caso comum não
   é invasão — é URL velha ou link colado. Não há laço: a org que negou nunca está no
   `/me/contexto`.
 - **`GET /api/organizacoes/{orgId}` entrou na `api.ts`, que a spec não listava.** A spec manda a
-  home mostrar "o nome da org ativa", e **nenhuma das duas rotas do contexto o tem**: o `/eu` não
+  home mostrar "o nome da org ativa", e **nenhuma das duas rotas do contexto o tem**: o `/me` não
   devolve nome, e o `/me/contexto` não lista a organização de um `platform_admin` sem vínculo nela
   — ele seria a única persona a ver um cabeçalho sem nome.
 - **A casca tem duas formas, não quatro.** O Colaborador é mobile-first e vive na barra inferior;
   Plataforma, Administração e Parceiro ganham barra lateral no desktop e caem na mesma barra
   inferior no celular. Quatro cascas seriam quatro coisas pra manter onde o que muda é conteúdo e
   navegação — e essas já vêm resolvidas do `buildNav`.
-- **`buildNav` filtra por persona *e* por entitlement, e o segundo sozinho seria errado.**
-  Verificado: o `/eu` de um `platform_admin` na Acme devolve `modules: ["refeicoes"]` — módulos
+- **`buildNav` filtra por persona _e_ por entitlement, e o segundo sozinho seria errado.**
+  Verificado: o `/me` de um `platform_admin` na Acme devolve `modules: ["refeicoes"]` — módulos
   são do **tenant**, não da pessoa (a `backend/05` já dizia). Sem o filtro de persona, a
   Plataforma veria "Refeições" no menu, um módulo que não tem tela pra ela. Quem separa é
   `ModuleDescriptor.personas`, e é o que dá utilidade ao campo.
 - **`ModuleGuard` não renderiza os filhos enquanto o contexto carrega**, e é isso que cumpre o
   "nunca dispara chamada que dependa dele": as chamadas do módulo saem de dentro dos filhos, então
-  checar *depois* de montar já teria batido no backend.
+  checar _depois_ de montar já teria batido no backend.
 - **As páginas de `refeicoes`/`frota` são a única coisa aqui que as fases 2/3 apagam** em vez de
   estender. Existem porque sem uma rota de módulo o critério 3 não seria observável. O
   `ModuleGuard` que as embrulha, esse, é o que o módulo real herda.

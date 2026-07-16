@@ -7,7 +7,7 @@ export const loginSchema = z.object({
 })
 
 /** Resposta de `GET /api/me` — só identidade. Vínculos, personas e módulos habilitados vêm
- *  de `GET /api/me/contexto` e `GET /api/organizacoes/{orgId}/eu` (specs 04/05). */
+ *  de `GET /api/me/contexto` e `GET /api/organizacoes/{orgId}/me` (specs 04/05). */
 export const userSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),

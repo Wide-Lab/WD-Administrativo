@@ -120,11 +120,11 @@ Da casa (Central / receipt-reader), não inventadas aqui:
 
 ## Fases
 
-| Fase                         | Escopo                                                                                                                                                | Estado                |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| **1 — Núcleo da plataforma** | Identidade + sessão, organizações + tenancy, membros + autorização, entitlements de módulo, casca + personas, login. **Nenhum app de negócio ainda.** | **Em implementação**  |
-| 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada          |
-| 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada          |
+| Fase                         | Escopo                                                                                                                                                | Estado               |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| **1 — Núcleo da plataforma** | Identidade + sessão, organizações + tenancy, membros + autorização, entitlements de módulo, casca + personas, login. **Nenhum app de negócio ainda.** | **Em implementação** |
+| 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada         |
+| 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada         |
 
 **Onde a fase 1 está (2026-07-16):** o **backend da fase 1 está fechado de verdade** (`01`–`06`)
 e o **frontend chegou na troca de organização** (`01`–`05`): dá pra logar, cair na cara certa da
@@ -152,7 +152,7 @@ vínculo e afrouxa só pra `platform_admin`. O multi-tenant é real.
 
 **Entitlement não afrouxa nem pra Widelab.** `require_permission` afrouxa pra `platform_admin`;
 `require_module` não afrouxa pra ninguém — um módulo que a Empresa não comprou não abre pra
-ninguém, porque é fato comercial e não privilégio. `GET /api/organizacoes/{orgId}/eu` já
+ninguém, porque é fato comercial e não privilégio. `GET /api/organizacoes/{orgId}/me` já
 devolve `modules`.
 
 **O que ainda falta pra fase 1:** só frontend, e só a `06` (onboarding) — que agora tem backend
@@ -169,7 +169,7 @@ só nasce pela CLI. Nenhum dos dois estava nos critérios; os dois são spec nov
 `Como ficou` da `backend/06`.
 
 **Um furo da casca que a `frontend/04` registrou:** os metadados de navegação de um módulo
-(label, path) moram **no frontend**, não no contexto — o `/eu` devolve `modules` como lista de
+(label, path) moram **no frontend**, não no contexto — o `/me` devolve `modules` como lista de
 chaves, e o `ModuleNav` do descritor só sai pelo `GET /modulos`, que é de `platform_admin`.
 A promessa comercial fica de pé (ligar o flag faz o item aparecer sem deploy), mas a spec supunha
 o contrário. Ver `Como ficou` da `frontend/04`.

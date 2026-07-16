@@ -40,13 +40,13 @@ O registry é a fonte da lista de módulos que a plataforma sabe oferecer. Regis
 
 `module_entitlements`
 
-| coluna | tipo | nota |
-|---|---|---|
-| `id` | UUID (PK) | |
-| `organization_id` | UUID → `organizations` (type=company) | |
-| `module_key` | text | referencia uma chave do registry |
-| `granted_at` | timestamptz | |
-| `granted_by` | UUID → `users` | quem (platform_admin) liberou |
+| coluna            | tipo                                  | nota                             |
+| ----------------- | ------------------------------------- | -------------------------------- |
+| `id`              | UUID (PK)                             |                                  |
+| `organization_id` | UUID → `organizations` (type=company) |                                  |
+| `module_key`      | text                                  | referencia uma chave do registry |
+| `granted_at`      | timestamptz                           |                                  |
+| `granted_by`      | UUID → `users`                        | quem (platform_admin) liberou    |
 
 Único por `(organization_id, module_key)`. **Presença da linha = habilitado. Ausência =
 negado.** Não há coluna booleana — desligar é apagar (ou expirar, se um dia precisar de
@@ -68,13 +68,13 @@ aplica; compõe com `require_permission` (spec 04):
 
 Gestão de entitlement (só `platform_admin`):
 
-| Método | Rota | Ação |
-|---|---|---|
-| `GET` | `/api/organizacoes/{orgId}/modulos` | módulos habilitados da Empresa + catálogo disponível |
-| `PUT` | `/api/organizacoes/{orgId}/modulos/{chave}` | habilita (idempotente) |
-| `DELETE` | `/api/organizacoes/{orgId}/modulos/{chave}` | desabilita |
+| Método   | Rota                                        | Ação                                                 |
+| -------- | ------------------------------------------- | ---------------------------------------------------- |
+| `GET`    | `/api/organizacoes/{orgId}/modulos`         | módulos habilitados da Empresa + catálogo disponível |
+| `PUT`    | `/api/organizacoes/{orgId}/modulos/{chave}` | habilita (idempotente)                               |
+| `DELETE` | `/api/organizacoes/{orgId}/modulos/{chave}` | desabilita                                           |
 
-Contexto do usuário — `GET /api/organizacoes/{orgId}/eu` (spec 04) inclui os módulos
+Contexto do usuário — `GET /api/organizacoes/{orgId}/me` (spec 04) inclui os módulos
 habilitados da organização, pra casca do frontend montar navegação:
 
 ```json
@@ -98,7 +98,7 @@ Cumprido isso, adicionar Refeições ou Carro não toca no núcleo.
 1. Endpoint de um módulo responde 403 pra Empresa sem entitlement, mesmo com papel/permissão
    corretos — a negação é do backend, não do frontend.
 2. `PUT` do entitlement é idempotente; `DELETE` volta a negar.
-3. `GET /api/organizacoes/{orgId}/eu` lista exatamente os módulos habilitados da organização.
+3. `GET /api/organizacoes/{orgId}/me` lista exatamente os módulos habilitados da organização.
 4. Registrar um módulo novo no `ModuleRegistry` não exige mudança em `core` além do descritor
    e de uma linha em `mount_routes`.
 5. Só `platform_admin` altera entitlement; qualquer outro papel recebe 403.
@@ -113,7 +113,7 @@ previa:
   previsão da spec 04 não valeu.** O motivo raso é ciclo de import (`mount_module` precisa do
   guard, o guard precisa da chave do registry). O motivo de verdade é que **a pergunta é
   outra**: `require_permission` pergunta quem é o usuário e afrouxa pra `platform_admin`;
-  `require_module` pergunta o que o *tenant* comprou e **não afrouxa pra ninguém**. Deixar os
+  `require_module` pergunta o que o _tenant_ comprou e **não afrouxa pra ninguém**. Deixar os
   dois no mesmo pacote convidaria alguém a "consertar" essa assimetria. Verificado rodando: um
   `platform_admin` leva **403** num módulo que a Empresa não contratou — entitlement é fato
   comercial, não privilégio, e a Widelab não abre por dentro o que não vendeu.
@@ -150,7 +150,7 @@ previa:
   spec, não decisões tomadas — chutá-las seria fazer fase 2 num placeholder.
 - **`GET /modulos` ficou só pra `platform_admin`, como as outras duas linhas da tabela.** A
   spec põe a rota sob o título "Gestão de entitlement (só `platform_admin`)" e é o que ficou:
-  um `company_admin` leva 403 ali. Ele não fica sem resposta — o `/eu` já lhe diz o que a
+  um `company_admin` leva 403 ali. Ele não fica sem resposta — o `/me` já lhe diz o que a
   Empresa tem. A diferença é o **catálogo**: "o que dá pra comprar" é tela de quem vende. Se um
   dia a Empresa puder ver a vitrine, é uma decisão de produto, não um ajuste de guard.
 - **As permissões novas são `modules.read`/`modules.write`, e o `modules.write` é o simétrico
@@ -183,14 +183,14 @@ previa:
   nega toda organização que não é Empresa, que é o que a spec diz ("`current_organization`
   (type=company)"). Mas o descritor de Refeições lista `partner` nas personas: um restaurante
   vai precisar abrir alguma tela. Ele não tem entitlement próprio — pela FK, não pode ter — e o
-  caminho provável é o convênio (o Parceiro alcança o módulo *da Empresa* que ele atende). Isso
+  caminho provável é o convênio (o Parceiro alcança o módulo _da Empresa_ que ele atende). Isso
   é desenho de produto do primeiro app de negócio, não desta spec, então ficou negado por
   padrão em vez de adivinhado.
-- **`/eu` de organização que não é Empresa devolve `modules: []`**, e agora isso quer dizer o
+- **`/me` de organização que não é Empresa devolve `modules: []`**, e agora isso quer dizer o
   que diz. A `04` recusou devolver `[]` porque na época significaria "entitlement não existe";
   hoje significa "esta organização não contratou nada", que é verdade tanto pro Parceiro quanto
   pra plataforma.
-- **`modules` é da organização, não da pessoa** — o `/eu` do `company_admin` e o do `hr` na
+- **`modules` é da organização, não da pessoa** — o `/me` do `company_admin` e o do `hr` na
   mesma Acme devolvem a mesma lista, e o que os separa é `persona`/`permissions`. Verificado. É
   a casca que cruza os dois eixos: aparece no menu o que é módulo do tenant **e** permissão de
   quem olha.
@@ -205,7 +205,7 @@ previa:
 - **Sem testes automatizados** — o backend segue sem framework de teste e esta spec não cita
   testes; a verificação foi por `curl` e `psql`. **A dívida que as specs 03 e 04 registraram
   segue crescendo**: o `PUT` idempotente, o 403 sem entitlement e o "só Empresa contrata" são
-  exatamente o que um teste barato protegeria — e agora eles guardam uma regra *comercial*, onde
+  exatamente o que um teste barato protegeria — e agora eles guardam uma regra _comercial_, onde
   um erro não trava a tela, só entrega de graça o que não foi vendido. Uma spec de infra de
   teste (`pytest` + Postgres efêmero) continua sendo o próximo candidato óbvio, e o argumento
   pra ela ficou mais caro de ignorar.

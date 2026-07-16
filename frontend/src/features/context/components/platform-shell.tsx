@@ -20,7 +20,7 @@ import { useMyContext } from '#/features/context/use-context'
 
 /** A guarda de persona da área da Plataforma.
  *
- *  Ela é **cross-tenant** e não tem `orgId`, então não há `/eu` pra perguntar — a fonte é o
+ *  Ela é **cross-tenant** e não tem `orgId`, então não há `/me` pra perguntar — a fonte é o
  *  `/me/contexto`: ter vínculo numa organização do tipo `platform` é ser Widelab. Quem não
  *  tem vai pra home da própria persona, como a spec pede.
  *
