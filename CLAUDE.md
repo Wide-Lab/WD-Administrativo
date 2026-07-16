@@ -21,26 +21,26 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 01 | fundação (FastAPI hexagonal) | ✅ | fundação (Next App Router) | ✅ |
 | 02 | identidade e sessão (`auth`) | ✅ | design system | ✅ |
 | 03 | organizações e tenancy (`access`) | ✅ | login e sessão | ✅ |
-| 04 | membros e autorização (`access`) | ✅ | casca e personas | ⬜¹ |
-| 05 | módulos e entitlements (`access`) | ✅ | seleção de organização | ⬜ |
+| 04 | membros e autorização (`access`) | ✅ | casca e personas | ✅ |
+| 05 | módulos e entitlements (`access`) | ✅ | seleção de organização | ⬜¹ |
 | 06 | convites e onboarding (`access`) | ⬜ | onboarding | ⬜ |
 
-¹ frontend `04` está **destravado por inteiro**: com backend `05` entregue, `GET
-/api/organizacoes/{orgId}/eu` devolve papel, persona, permissões **e** `modules` — a navegação
-derivada de módulos tem de onde sair.
+¹ **a próxima entrega.** Com a `frontend/04` fechada, quem tem mais de um vínculo cai sempre no
+primeiro (`homePathFor`) — trocar de organização ainda é editar a URL.
 
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
 `Fora de escopo` / `Critérios de aceite`).
 
-## Estado atual — kernel completo; a fase 1 do backend fechou
+## Estado atual — kernel completo; o superapp já mostra a cara certa
 
-Backend `01`–`05` e frontend `01`–`03` estão implementados: dá pra subir a stack, logar,
+Backend `01`–`05` e frontend `01`–`04` estão implementados: dá pra subir a stack, logar,
 provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel, **vender módulo
 ligando um flag** — e **o backend nega de verdade** (403 em tenant sem vínculo, 403 em permissão
-faltante, 403 em módulo não contratado). **A próxima entrega é `frontend/04-casca-e-personas.md`**,
-agora destravada por inteiro; no backend, o que resta antes da fase 2 é a `06` (convites), e
-criar vínculo segue sendo CLI até lá.
+faltante, 403 em módulo não contratado). Com a `frontend/04`, logar já cai na casca da sua
+persona, com a navegação saindo dos módulos que o **tenant** contratou. **A próxima entrega é
+`frontend/05-selecao-de-organizacao.md`**; no backend, o que resta antes da fase 2 é a `06`
+(convites), e criar vínculo segue sendo CLI até lá.
 
 O que existe hoje:
 
@@ -80,11 +80,23 @@ O que existe hoje:
   `python -m src.modules.access.cli grant --email … --role … [--org …]`; sem `--org`, o alvo é
   a organização `platform`.
 - `frontend/` — scaffold Next, design system (tokens em `src/styles.css`, primitivos shadcn,
-  vitrine em `/design-system`), feature `auth` (`/entrar`, `use-session`, guarda de rota) e
-  uma `/` autenticada **placeholder** — a home de verdade é decidida por frontend `04`.
+  vitrine em `/design-system`), feature `auth` (`(publico)/entrar`, `use-session`, guarda de
+  rota) e feature `context`: `use-context` (`/api/me/contexto`), `use-org-context`
+  (`/eu` + nome da org), `buildNav`/`homePathFor` (puras, testadas), `AppShell`, `Can`,
+  `ModuleGuard`. Rotas: `/` **roteia** pra home da persona (não é tela), `/plataforma`
+  (cross-tenant, guarda por vínculo de plataforma) e `/organizacoes/[orgId]/*`, cujo `layout`
+  resolve a persona e monta a casca. `refeicoes`/`frota` existem como **rotas-placeholder atrás
+  do `ModuleGuard`** — as fases 2/3 as substituem.
+- **Não há route group por persona** (`(admin)`/`(parceiro)`/`(colaborador)`), e é decisão:
+  route group é estático, persona é runtime (vem do `/eu`). O seam por persona mora no
+  `AppShell` e no `buildNav`. Ver `Como ficou` da `frontend/04`.
+- **Label e path de módulo moram no frontend** (`features/context/modules.ts`), não no contexto:
+  o `/eu` devolve só as **chaves** habilitadas, e o `ModuleNav` do descritor só sai pelo
+  `GET /modulos`, que é de `platform_admin`. Ligar o flag ainda faz o item aparecer sem deploy —
+  quem decide visibilidade é o entitlement. Mexeu no descritor do backend, mexe no catálogo.
 - `docker-compose.yml` + `nginx/` — stack completa (Postgres, backend, frontend, nginx).
-- Os route groups por persona (`(admin)`/`(parceiro)`/`(colaborador)`) e qualquer app de
-  negócio **não existem ainda**. Não assuma — confirme lendo o diretório.
+- Nenhum app de negócio existe ainda — `refeicoes` e `frota` são chave registrada no backend e
+  rota-placeholder no frontend, nada mais. Não assuma — confirme lendo o diretório.
 
 ## Arquitetura (o retrato grande, que exige ler várias specs)
 
