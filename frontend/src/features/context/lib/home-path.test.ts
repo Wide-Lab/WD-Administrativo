@@ -35,12 +35,49 @@ describe('homePathFor', () => {
     expect(homePathFor(memberships)).toBe(PLATFORM_HOME)
   })
 
-  it('com vários vínculos, cai no primeiro — o seletor é a spec 05', () => {
+  it('sem último orgId lembrado, cai no primeiro vínculo', () => {
     const memberships = [
       membership(GOMES, 'partner', 'partner_admin'),
       membership(ACME, 'company', 'collaborator'),
     ]
 
     expect(homePathFor(memberships)).toBe(`/organizacoes/${GOMES}`)
+  })
+
+  describe('com o último orgId visitado', () => {
+    const doisVinculos = [
+      membership(GOMES, 'partner', 'partner_admin'),
+      membership(ACME, 'company', 'collaborator'),
+    ]
+
+    it('volta pra onde a pessoa estava, e não pro primeiro da lista', () => {
+      expect(homePathFor(doisVinculos, ACME)).toBe(`/organizacoes/${ACME}`)
+    })
+
+    it('cai no primeiro vínculo quando o vínculo lembrado deixou de existir', () => {
+      const semGomes = [membership(ACME, 'company', 'collaborator')]
+
+      // O vínculo foi desativado desde a última visita: o backend o omite do `/me/contexto`.
+      expect(homePathFor(semGomes, GOMES)).toBe(`/organizacoes/${ACME}`)
+    })
+
+    it('ignora um orgId que a pessoa alcança mas não tem vínculo (platform_admin em tenant alheio)', () => {
+      const soPlataforma = [membership(WIDELAB, 'platform', 'platform_admin')]
+
+      expect(homePathFor(soPlataforma, ACME)).toBe(PLATFORM_HOME)
+    })
+
+    it('uma visita explícita ganha do atalho da Plataforma', () => {
+      const plataformaEEmpresa = [
+        membership(WIDELAB, 'platform', 'platform_admin'),
+        membership(ACME, 'company', 'company_admin'),
+      ]
+
+      expect(homePathFor(plataformaEEmpresa, ACME)).toBe(`/organizacoes/${ACME}`)
+    })
+
+    it('segue sem destino pra quem não tem vínculo nenhum', () => {
+      expect(homePathFor([], ACME)).toBeNull()
+    })
   })
 })

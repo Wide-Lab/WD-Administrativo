@@ -1,7 +1,10 @@
 /** Pra onde mandar alguém que só disse "quero entrar" — a `/`, o pós-login, e o destino de
  *  quem bateu numa área de persona que não é a sua.
  *
- *  Pura: é regra de roteamento, e regra de roteamento errada manda a pessoa pra um beco. */
+ *  Pura: é regra de roteamento, e regra de roteamento errada manda a pessoa pra um beco. O
+ *  último `orgId` entra por **parâmetro**, não lido do `localStorage` aqui — é o que mantém a
+ *  regra provável sem DOM (o Vitest deste projeto roda em `node`), e o efeito colateral fica
+ *  numa peça só (`lib/last-org.ts`). */
 
 import { organizationHomePath } from '#/features/context/nav'
 import type { ContextMembership } from '#/features/context/types'
@@ -14,17 +17,43 @@ export function isPlatformMembership(membership: ContextMembership): boolean {
   return membership.organization.type === 'platform'
 }
 
+/** A home deste vínculo. A da Plataforma não é um `orgId`: quem é da Widelab entra pela mesa
+ *  de operação, e é o único vínculo cuja casca vive fora de `/organizacoes/`. */
+export function membershipHomePath(membership: ContextMembership): string {
+  return isPlatformMembership(membership)
+    ? PLATFORM_HOME
+    : organizationHomePath(membership.organization.id)
+}
+
 /** A home real de quem tem estes vínculos, ou `null` se a pessoa não tem nenhum.
  *
- *  Vínculo de plataforma ganha da lista: quem é da Widelab entra pela mesa de operação, não
- *  por um tenant. Com mais de um vínculo, cai no primeiro — **o seletor de organização é a
- *  spec 05**, e esta spec assume uma org ativa já resolvida. `null` não é erro: é o convidado
- *  que ainda não aceitou nada (spec 06), e a `/` o trata como estado, com tela própria. */
-export function homePathFor(memberships: readonly ContextMembership[]): string | null {
-  if (memberships.some(isPlatformMembership)) return PLATFORM_HOME
+ *  A ordem é: **onde a pessoa estava** > a mesa da Plataforma > o primeiro vínculo.
+ *
+ *  `lastOrgId` só vale se ainda for um vínculo **válido** — e é a validação que faz o palpite
+ *  ser seguro: o vínculo pode ter sido desativado desde a última visita (o backend o omite do
+ *  `/me/contexto`), e um `platform_admin` alcança qualquer `orgId` sem ter vínculo nele. Nos
+ *  dois casos o palpite é descartado em silêncio, sem quebrar.
+ *
+ *  Uma visita explícita ganha do atalho da Plataforma **de propósito**, e isto é uma mudança
+ *  em relação à `04`: quem tem vínculo de plataforma *e* de tenant e estava no tenant volta pro
+ *  tenant. É o que o critério 4 desta spec pede ("o último orgId … orienta o redirect"), é
+ *  reversível pelo seletor, e quem trabalha só na mesa nunca guarda `orgId` nenhum — a
+ *  `/plataforma` esquece o último (`forgetLastOrgId`), então ela segue caindo aqui.
+ *
+ *  `null` não é erro: é o convidado que ainda não aceitou nada (spec 06), e a `/` o trata como
+ *  estado, com tela própria. */
+export function homePathFor(
+  memberships: readonly ContextMembership[],
+  lastOrgId: string | null = null,
+): string | null {
+  const last = memberships.find((membership) => membership.organization.id === lastOrgId)
+  if (last !== undefined) return membershipHomePath(last)
+
+  const platform = memberships.find(isPlatformMembership)
+  if (platform !== undefined) return PLATFORM_HOME
 
   const [first] = memberships
   if (first === undefined) return null
 
-  return organizationHomePath(first.organization.id)
+  return membershipHomePath(first)
 }

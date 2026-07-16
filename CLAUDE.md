@@ -22,11 +22,10 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 02 | identidade e sessão (`auth`) | ✅ | design system | ✅ |
 | 03 | organizações e tenancy (`access`) | ✅ | login e sessão | ✅ |
 | 04 | membros e autorização (`access`) | ✅ | casca e personas | ✅ |
-| 05 | módulos e entitlements (`access`) | ✅ | seleção de organização | ⬜¹ |
-| 06 | convites e onboarding (`access`) | ⬜ | onboarding | ⬜ |
+| 05 | módulos e entitlements (`access`) | ✅ | seleção de organização | ✅ |
+| 06 | convites e onboarding (`access`) | ⬜¹ | onboarding | ⬜ |
 
-¹ **a próxima entrega.** Com a `frontend/04` fechada, quem tem mais de um vínculo cai sempre no
-primeiro (`homePathFor`) — trocar de organização ainda é editar a URL.
+¹ **a próxima entrega.** Criar vínculo segue sendo CLI até ela existir.
 
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
@@ -34,13 +33,14 @@ uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Ob
 
 ## Estado atual — kernel completo; o superapp já mostra a cara certa
 
-Backend `01`–`05` e frontend `01`–`04` estão implementados: dá pra subir a stack, logar,
+Backend `01`–`05` e frontend `01`–`05` estão implementados: dá pra subir a stack, logar,
 provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel, **vender módulo
 ligando um flag** — e **o backend nega de verdade** (403 em tenant sem vínculo, 403 em permissão
 faltante, 403 em módulo não contratado). Com a `frontend/04`, logar já cai na casca da sua
-persona, com a navegação saindo dos módulos que o **tenant** contratou. **A próxima entrega é
-`frontend/05-selecao-de-organizacao.md`**; no backend, o que resta antes da fase 2 é a `06`
-(convites), e criar vínculo segue sendo CLI até lá.
+persona, com a navegação saindo dos módulos que o **tenant** contratou; com a `frontend/05`, quem
+tem mais de um vínculo **troca de organização pelo seletor do masthead**, e o pós-login volta pra
+última organização visitada. **A próxima entrega é a `backend/06` (convites e onboarding)** — e
+criar vínculo segue sendo CLI até lá —, seguida da `frontend/06`.
 
 O que existe hoje:
 
@@ -83,10 +83,17 @@ O que existe hoje:
   vitrine em `/design-system`), feature `auth` (`(publico)/entrar`, `use-session`, guarda de
   rota) e feature `context`: `use-context` (`/api/me/contexto`), `use-org-context`
   (`/eu` + nome da org), `buildNav`/`homePathFor` (puras, testadas), `AppShell`, `Can`,
-  `ModuleGuard`. Rotas: `/` **roteia** pra home da persona (não é tela), `/plataforma`
+  `ModuleGuard`, `OrganizationSwitcher` (o seletor do masthead) e `lib/last-org.ts` (o último
+  `orgId`, único uso de `localStorage`). Rotas: `/` **roteia** pra home da persona (não é tela), `/plataforma`
   (cross-tenant, guarda por vínculo de plataforma) e `/organizacoes/[orgId]/*`, cujo `layout`
   resolve a persona e monta a casca. `refeicoes`/`frota` existem como **rotas-placeholder atrás
   do `ModuleGuard`** — as fases 2/3 as substituem.
+- **A organização ativa é o `orgId` da URL — não há store de "org ativa", e o seletor só navega.**
+  O `localStorage` guarda **uma** coisa (`lib/last-org.ts`): o último `orgId` visitado, usado só
+  pra decidir o redirect pós-login, e sempre validado contra os vínculos do `/me/contexto` antes de
+  valer. Ele **ganha do atalho da Plataforma** (a `/plataforma` o esquece ao abrir), o que muda a
+  ordem que a `frontend/04` fixou. Só se lembra `orgId` que o backend deixou abrir, então um que
+  respondeu 403 nunca vira destino. Ver `Como ficou` da `frontend/05`.
 - **Não há route group por persona** (`(admin)`/`(parceiro)`/`(colaborador)`), e é decisão:
   route group é estático, persona é runtime (vem do `/eu`). O seam por persona mora no
   `AppShell` e no `buildNav`. Ver `Como ficou` da `frontend/04`.
