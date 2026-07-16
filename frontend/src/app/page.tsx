@@ -7,6 +7,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from '#/components/ui/ca
 import { Skeleton } from '#/components/ui/skeleton'
 import { RequireSession } from '#/features/auth/components/require-session'
 import { homePathFor } from '#/features/context/lib/home-path'
+import { readLastOrgId } from '#/features/context/lib/last-org'
 import { useMyContext } from '#/features/context/use-context'
 
 /** A `/` não tem tela: ela **roteia**. É o destino padrão do pós-login (`safeNextPath`) e o
@@ -17,16 +18,22 @@ import { useMyContext } from '#/features/context/use-context'
 function ContextRouter() {
   const { memberships, isLoading } = useMyContext()
   const router = useRouter()
-  const home = isLoading ? null : homePathFor(memberships)
 
+  // O último `orgId` é lido **dentro** do efeito, nunca na renderização: `localStorage` não
+  // existe no servidor, e lê-lo no corpo do componente daria hidratação divergente. O que
+  // decide a tela ("sem vínculo") não depende dele — só o destino depende.
   useEffect(() => {
+    if (isLoading) return
+
+    const home = homePathFor(memberships, readLastOrgId())
     if (home === null) return
+
     router.replace(home)
-  }, [home, router])
+  }, [isLoading, memberships, router])
 
   // Sem vínculo nenhum: não é erro, e não há pra onde mandar. Um convite pendente (spec 06) ou
   // um vínculo desativado caem aqui — o backend omite do contexto o que não dá pra abrir.
-  if (!isLoading && home === null) {
+  if (!isLoading && memberships.length === 0) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-6">
         <Card>

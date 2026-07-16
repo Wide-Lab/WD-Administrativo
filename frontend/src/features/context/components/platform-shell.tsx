@@ -10,7 +10,12 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { RequireSession } from '#/features/auth/components/require-session'
 import { useLogout } from '#/features/auth/use-logout'
 import { useSession } from '#/features/auth/use-session'
+import {
+  OrganizationSwitcher,
+  useCanSwitchOrganization,
+} from '#/features/context/components/organization-switcher'
 import { homePathFor, isPlatformMembership } from '#/features/context/lib/home-path'
+import { forgetLastOrgId, readLastOrgId } from '#/features/context/lib/last-org'
 import { useMyContext } from '#/features/context/use-context'
 
 /** A guarda de persona da área da Plataforma.
@@ -38,8 +43,16 @@ function PlatformGuard({ children }: { children: ReactNode }) {
     if (isLoading || isPlatform) return
     // `homePathFor` nunca devolve `/plataforma` aqui: quem não é da Widelab não tem o vínculo
     // que apontaria pra cá, então não há laço.
-    router.replace(homePathFor(memberships) ?? '/')
+    router.replace(homePathFor(memberships, readLastOrgId()) ?? '/')
   }, [isLoading, isPlatform, memberships, router])
+
+  // A mesa da Plataforma é cross-tenant: estar aqui é não estar em organização nenhuma, e é o
+  // que o próximo login precisa saber. Sem isto, um `platform_admin` que visitou um tenant uma
+  // vez cairia nele pra sempre — o `orgId` lembrado ganha do atalho da Plataforma.
+  useEffect(() => {
+    if (!isPlatform) return
+    forgetLastOrgId()
+  }, [isPlatform])
 
   if (isLoading || !isPlatform) {
     return (
@@ -62,6 +75,11 @@ function PlatformGuard({ children }: { children: ReactNode }) {
 function PlatformMasthead() {
   const { user } = useSession()
   const logout = useLogout()
+  const { memberships } = useMyContext()
+  const canSwitch = useCanSwitchOrganization()
+
+  // O `PlatformGuard` só renderiza esta casca havendo vínculo de plataforma.
+  const platform = memberships.find(isPlatformMembership)
 
   return (
     <header className="sticky top-0 z-10 border-b border-line bg-bg/80 backdrop-blur-sm">
@@ -70,6 +88,14 @@ function PlatformMasthead() {
         <span aria-hidden className="hidden text-line sm:inline">
           /
         </span>
+        {/* Sem seletor, quem é da Widelab e também tem vínculo num tenant não teria como sair
+            daqui a não ser editando a URL — era o que a `04` deixou em aberto. */}
+        {canSwitch && (
+          <OrganizationSwitcher
+            activeOrgId={platform?.organization.id ?? null}
+            organizationName={platform?.organization.name ?? null}
+          />
+        )}
         <span className="rounded-sm bg-surface-2 px-1.5 py-0.5 text-xs text-muted">Plataforma</span>
 
         <div className="ml-auto flex items-center gap-3">

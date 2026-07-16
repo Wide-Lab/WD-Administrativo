@@ -8,6 +8,7 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { RequireSession } from '#/features/auth/components/require-session'
 import { AppShell } from '#/features/context/components/app-shell'
 import { homePathFor } from '#/features/context/lib/home-path'
+import { readLastOrgId, rememberOrgId } from '#/features/context/lib/last-org'
 import { MODULE_CATALOG } from '#/features/context/modules'
 import { buildNav } from '#/features/context/nav'
 import { useMyContext } from '#/features/context/use-context'
@@ -28,7 +29,12 @@ function ShellSkeleton() {
  *
  *  Redirecionar, e não mostrar "acesso negado", porque o caso comum não é invasão — é uma URL
  *  velha de um vínculo que acabou, ou um link colado de outra pessoa. Não há laço: o backend
- *  omite do `/me/contexto` o que a pessoa não pode abrir, então o destino nunca é esta org. */
+ *  omite do `/me/contexto` o que a pessoa não pode abrir, então o destino nunca é esta org.
+ *
+ *  É isto que cumpre o critério 5 da `05`: o destino é uma organização real da pessoa, e o
+ *  seletor do masthead está lá pra ela escolher outra — reseleção, não tela quebrada. A org que
+ *  negou nunca foi lembrada (só se lembra o que o backend deixou abrir), então ela não volta a
+ *  ser destino. */
 function RedirectToOwnHome() {
   const { memberships, isLoading } = useMyContext()
   const router = useRouter()
@@ -36,7 +42,7 @@ function RedirectToOwnHome() {
   useEffect(() => {
     if (isLoading) return
     // Sem vínculo nenhum, a `/` é quem sabe explicar — não invente destino aqui.
-    router.replace(homePathFor(memberships) ?? '/')
+    router.replace(homePathFor(memberships, readLastOrgId()) ?? '/')
   }, [isLoading, memberships, router])
 
   return <ShellSkeleton />
@@ -45,6 +51,14 @@ function RedirectToOwnHome() {
 function OrgContextBoundary({ children }: { children: ReactNode }) {
   const orgId = useOrgId()
   const { orgContext, organization, persona, modules, isLoading, isForbidden } = useOrgContext()
+
+  // Só se lembra da organização que o backend **deixou abrir**: um `orgId` que respondeu 403
+  // nunca vira o destino do próximo login. Lembrar não escolhe nada — a organização ativa é a
+  // URL; isto é só o palpite de pra onde ir quando ainda não há URL (`homePathFor`).
+  useEffect(() => {
+    if (orgContext === null) return
+    rememberOrgId(orgId)
+  }, [orgContext, orgId])
 
   if (isForbidden) return <RedirectToOwnHome />
   if (isLoading) return <ShellSkeleton />

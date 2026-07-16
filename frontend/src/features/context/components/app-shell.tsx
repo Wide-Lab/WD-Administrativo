@@ -9,6 +9,10 @@ import { Wordmark } from '#/components/layout/wordmark'
 import { Button } from '#/components/ui/button'
 import { useLogout } from '#/features/auth/use-logout'
 import { useSession } from '#/features/auth/use-session'
+import {
+  OrganizationSwitcher,
+  useCanSwitchOrganization,
+} from '#/features/context/components/organization-switcher'
 import { isNavItemActive, type NavItem } from '#/features/context/nav'
 import type { Persona } from '#/features/context/types'
 import { cn } from '#/lib/utils'
@@ -23,16 +27,19 @@ const PERSONA_LABEL: Record<Persona, string> = {
 }
 
 function Masthead({
+  orgId,
   organizationName,
   persona,
   compact = false,
 }: {
+  orgId: string
   organizationName: string | null
   persona: Persona
   compact?: boolean
 }) {
   const { user } = useSession()
   const logout = useLogout()
+  const canSwitch = useCanSwitchOrganization()
 
   return (
     <header className="sticky top-0 z-10 border-b border-line bg-bg/80 backdrop-blur-sm">
@@ -44,12 +51,19 @@ function Masthead({
       >
         <Wordmark className={compact ? 'hidden sm:inline-flex' : ''} />
 
-        {organizationName !== null && (
+        {/* O seletor entra no lugar do nome quando há escolha a fazer — e o nome sozinho segue
+            valendo pra quem tem um vínculo só. Ele também aparece quando o nome não veio (o
+            `/{orgId}` falhou), porque trocar de organização não depende de saber o nome desta. */}
+        {(organizationName !== null || canSwitch) && (
           <>
             <span aria-hidden className="hidden text-line sm:inline">
               /
             </span>
-            <span className="min-w-0 truncate text-sm font-medium">{organizationName}</span>
+            {canSwitch ? (
+              <OrganizationSwitcher activeOrgId={orgId} organizationName={organizationName} />
+            ) : (
+              <span className="min-w-0 truncate text-sm font-medium">{organizationName}</span>
+            )}
             <span className="rounded-sm bg-surface-2 px-1.5 py-0.5 text-xs text-muted">
               {PERSONA_LABEL[persona]}
             </span>
@@ -175,7 +189,7 @@ export function AppShell({ orgId, organizationName, persona, nav, children }: Ap
   if (isCollaborator) {
     return (
       <div className="flex min-h-dvh flex-col">
-        <Masthead organizationName={organizationName} persona={persona} compact />
+        <Masthead orgId={orgId} organizationName={organizationName} persona={persona} compact />
         <main className="mx-auto w-full max-w-2xl flex-1 px-4 pt-6 pb-24">{children}</main>
         <BottomNav items={nav} orgId={orgId} />
       </div>
@@ -184,7 +198,7 @@ export function AppShell({ orgId, organizationName, persona, nav, children }: Ap
 
   return (
     <div className="min-h-dvh">
-      <Masthead organizationName={organizationName} persona={persona} />
+      <Masthead orgId={orgId} organizationName={organizationName} persona={persona} />
       <div className="mx-auto flex w-full max-w-7xl gap-8 px-6 py-8">
         <SideNav items={nav} orgId={orgId} />
         <main className="min-w-0 flex-1 pb-24 md:pb-0">{children}</main>
