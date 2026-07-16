@@ -186,7 +186,9 @@ primeiro app de negócio esbarra nisso no primeiro endpoint. Ver `Como ficou` da
 único do token, a resposta uniforme do aceite e a atomicidade do auto-cadastro são propriedades
 que somem numa refatoração sem ninguém notar — e a verificação delas hoje é manual e não se
 repete. Uma spec de infra de teste (`pytest` + Postgres efêmero) deixou de ser "o próximo
-candidato óbvio" e passou a ser o que separa a fase 1 de uma fase 2 segura.
+candidato óbvio" e passou a ser o que separa a fase 1 de uma fase 2 segura. **Ela agora existe e
+fura a fila: `backend/07-testes.md`** — escopo backend só; a dívida de teste do frontend, acima,
+continua aberta e ganha spec própria.
 
 O faseamento é desenhado pra que os apps (fases 2+) **não toquem no núcleo**: cada um entra
 como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement.
@@ -207,6 +209,7 @@ Backend:
 4. ✅ `backend/04-membros-e-autorizacao.md` — `Membership` (usuário↔org+papel), papéis/permissões, `require_permission`, resolução de persona.
 5. ✅ `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar. **Fase 1 do backend fechada.**
 6. ✅ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **Fase 1 do backend fechada.** Sem rota de revogar/listar convite, e Parceiro não convida — ver `Como ficou`.
+7. ⬜ `backend/07-testes.md` — `pytest` + Postgres efêmero (testcontainers), a suíte que prende as invariantes que as `03`–`06` registraram como dívida, e a regra que faz teste deixar de ser opcional no backend. **← próxima**, furando a fila da `frontend/06`: é a dívida que as quatro últimas specs registraram e o pré-requisito da fase 2.
 
 Frontend:
 
@@ -215,7 +218,7 @@ Frontend:
 3. ✅ `frontend/03-login-e-sessao.md` — tela de login, ciclo de sessão, cliente da API de identidade.
 4. ✅ `frontend/04-casca-e-personas.md` — app shell, navegação derivada de vínculos + entitlements, guard de acesso. **Fase 1 do frontend fechada.** Não há route group por persona: persona é runtime, route group é estático — ver `Como ficou`.
 5. ✅ `frontend/05-selecao-de-organizacao.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas). O último `orgId` visitado passou a ganhar do atalho da Plataforma no pós-login — muda uma decisão da `04`, ver `Como ficou`.
-6. ⬜ `frontend/06-onboarding.md` — telas de aceite de convite, definição de senha e primeiro acesso por persona. **← próxima, e a última da fase 1**
+6. ⬜ `frontend/06-onboarding.md` — telas de aceite de convite, definição de senha e primeiro acesso por persona. **← próxima do frontend, e a última da fase 1** (a `backend/07` fura a fila; esta segue destravada e pode andar em paralelo).
 
 ## O que não fazer (fora de escopo desta fase)
 
