@@ -273,16 +273,22 @@ class ModuleEntitlementRepository:
     async def delete(self, organization_id: uuid.UUID, module_key: ModuleKey) -> bool:
         """Desabilita um módulo apagando a linha — não há coluna pra desligar.
 
-        Devolve se havia o que apagar, pra o use case não precisar de um `SELECT` antes só pra
-        saber."""
+        Devolve se havia o que apagar. Apagar o que não existe não é erro: o `DELETE` afirma um
+        estado, e quem chama decide se a diferença importa (hoje não importa — a rota responde
+        204 nos dois casos)."""
 
-        result = await self._session.execute(
-            sa.delete(ModuleEntitlementModel).where(
+        model = await self._get_model_by(
+            sa.and_(
                 ModuleEntitlementModel.organization_id == organization_id,
                 ModuleEntitlementModel.module_key == module_key,
             )
         )
-        return result.rowcount > 0
+        if model is None:
+            return False
+
+        await self._session.delete(model)
+        await self._session.flush()
+        return True
 
     async def _get_model_by(
         self,
