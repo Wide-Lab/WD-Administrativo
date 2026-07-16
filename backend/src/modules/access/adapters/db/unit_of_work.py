@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database.unit_of_work import SQLAlchemyUnitOfWork
 from src.modules.access.adapters.db.repository import (
+    MembershipRepository,
     OrganizationRepository,
     PartnerAgreementRepository,
 )
@@ -26,6 +27,7 @@ class AccessUnitOfWork(SQLAlchemyUnitOfWork):
         super().__init__(session=session)
         self._organizations: OrganizationRepository | None = None
         self._agreements: PartnerAgreementRepository | None = None
+        self._memberships: MembershipRepository | None = None
 
     @property
     def organizations(self) -> OrganizationRepository:
@@ -41,10 +43,18 @@ class AccessUnitOfWork(SQLAlchemyUnitOfWork):
             raise RuntimeError("Repositório de convênios não inicializado.")
         return self._agreements
 
+    @property
+    def memberships(self) -> MembershipRepository:
+        """Repositório de vínculos."""
+        if self._memberships is None:
+            raise RuntimeError("Repositório de vínculos não inicializado.")
+        return self._memberships
+
     async def __aenter__(self) -> Self:
         await super().__aenter__()
         self._organizations = OrganizationRepository(self._session)
         self._agreements = PartnerAgreementRepository(self._session)
+        self._memberships = MembershipRepository(self._session)
         return self
 
     async def __aexit__(
@@ -56,3 +66,4 @@ class AccessUnitOfWork(SQLAlchemyUnitOfWork):
         await super().__aexit__(exc_type, exc_val, exc_tb)
         self._organizations = None
         self._agreements = None
+        self._memberships = None

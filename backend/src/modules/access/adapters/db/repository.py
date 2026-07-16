@@ -6,20 +6,45 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ConflictError, NotFoundError
 from src.core.pagination.params import Page, PageParams
+from src.core.tenancy import OrganizationType
+from src.modules.access.adapters.db.models import Membership as MembershipModel
 from src.modules.access.adapters.db.models import Organization as OrganizationModel
 from src.modules.access.adapters.db.models import PartnerAgreement as PartnerAgreementModel
 from src.modules.access.application.dtos.filters import (
+    MembershipFilters,
     OrganizationFilters,
     PartnerAgreementFilters,
 )
 from src.modules.access.domain.entities import (
+    Membership,
+    MembershipStatus,
+    MembershipWithOrganization,
+    NewMembership,
     NewOrganization,
     NewPartnerAgreement,
     Organization,
+    OrganizationStatus,
     PartnerAgreement,
+    Role,
+    UpdateMembership,
     UpdateOrganization,
     UpdatePartnerAgreement,
 )
+
+
+def _organization_to_entity(row: OrganizationModel) -> Organization:
+    """Model → entidade. É função de módulo, e não só método do `OrganizationRepository`,
+    porque o `MembershipRepository` também precisa dela: `GET /api/me/contexto` devolve o
+    vínculo já com a organização do outro lado."""
+
+    return Organization(
+        id=row.id,
+        type=row.type,
+        name=row.name,
+        document=row.document,
+        status=row.status,
+        created_at=row.created_at,
+    )
 
 
 class OrganizationRepository:
@@ -88,14 +113,7 @@ class OrganizationRepository:
         return result.scalars().one_or_none()
 
     def _to_entity(self, row: OrganizationModel) -> Organization:
-        return Organization(
-            id=row.id,
-            type=row.type,
-            name=row.name,
-            document=row.document,
-            status=row.status,
-            created_at=row.created_at,
-        )
+        return _organization_to_entity(row)
 
 
 class PartnerAgreementRepository:
@@ -189,6 +207,177 @@ class PartnerAgreementRepository:
             id=row.id,
             company_id=row.company_id,
             partner_id=row.partner_id,
+            status=row.status,
+            created_at=row.created_at,
+        )
+
+
+class MembershipRepository:
+    """Repositório de vínculos usuário↔organização↔papel.
+
+    Não é tenant-scoped pelo helper do `core`: o vínculo é *a definição* de tenant de alguém,
+    e o `/me/contexto` precisa justamente atravessar organizações pra listar onde a pessoa
+    entra. Quem escopa a leitura por organização é o filtro explícito de cada use case."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_id_or_none(self, id_: uuid.UUID) -> Membership | None:
+        row = await self._get_model_by(MembershipModel.id == id_)
+        return self._to_entity(row) if row else None
+
+    async def create(self, create_command: NewMembership) -> Membership:
+        """Cria um vínculo. A unicidade `(user_id, organization_id)` e a validade do papel pro
+        tipo de organização são garantidas pelo banco; aqui a violação vira `ConflictError`.
+
+        Como no convênio (spec 03), a tradução precisa acontecer no `flush` e não só no
+        `commit`: o `INSERT` sai daqui, então a constraint estoura antes — sem este `except`,
+        um vínculo duplicado viraria 500 em vez de 409."""
+
+        model = MembershipModel(**create_command.to_dict())
+        self._session.add(model)
+
+        try:
+            await self._session.flush()
+        except IntegrityError as exc:
+            raise ConflictError("Esta pessoa já tem vínculo com esta organização.") from exc
+
+        return self._to_entity(model)
+
+    async def update(self, id_: uuid.UUID, update_command: UpdateMembership) -> Membership:
+        """Atualiza papel e/ou status. `organization_type` não está entre os campos: ele
+        acompanha a organização, não o vínculo — e é o CHECK do banco que recusa um papel
+        incompatível com ele."""
+
+        model = await self._get_model_by(MembershipModel.id == id_)
+        if model is None:
+            raise NotFoundError("Vínculo não encontrado.")
+
+        for field, value in update_command.defined_values().items():
+            setattr(model, field, value)
+
+        try:
+            await self._session.flush()
+        except IntegrityError as exc:
+            raise ConflictError("Papel inválido para o tipo desta organização.") from exc
+
+        return self._to_entity(model)
+
+    async def paginate(
+        self,
+        page_params: PageParams,
+        filters: MembershipFilters | None = None,
+    ) -> Page[Membership]:
+        filters = filters or MembershipFilters()
+
+        stmt = sa.select(MembershipModel)
+        if filters.organization_id is not None:
+            stmt = stmt.where(MembershipModel.organization_id == filters.organization_id)
+        if filters.user_id is not None:
+            stmt = stmt.where(MembershipModel.user_id == filters.user_id)
+        if filters.role is not None:
+            stmt = stmt.where(MembershipModel.role == filters.role)
+        if filters.status is not None:
+            stmt = stmt.where(MembershipModel.status == filters.status)
+        stmt = stmt.order_by(MembershipModel.created_at.desc())
+
+        count_stmt = sa.select(sa.func.count()).select_from(stmt.subquery())
+        total = await self._session.scalar(count_stmt) or 0
+
+        result = await self._session.execute(
+            stmt.offset((page_params.page - 1) * page_params.page_size).limit(page_params.page_size)
+        )
+
+        return Page(
+            items=[self._to_entity(row) for row in result.scalars().all()],
+            total=total,
+            page=page_params.page,
+            page_size=page_params.page_size,
+        )
+
+    async def get_active_for_user_and_organization(
+        self,
+        user_id: uuid.UUID,
+        organization_id: uuid.UUID,
+    ) -> Membership | None:
+        """O vínculo ativo de uma pessoa numa organização; `None` se não houver.
+
+        "Ativo" exige o vínculo **e** a organização ativos: desativar uma organização derruba
+        o acesso de todo mundo nela sem tocar vínculo por vínculo, e desativar um vínculo
+        derruba a pessoa sem apagar o histórico dela."""
+
+        result = await self._session.execute(
+            sa.select(MembershipModel)
+            .join(OrganizationModel, MembershipModel.organization_id == OrganizationModel.id)
+            .where(
+                MembershipModel.user_id == user_id,
+                MembershipModel.organization_id == organization_id,
+                MembershipModel.status == MembershipStatus.ACTIVE,
+                OrganizationModel.status == OrganizationStatus.ACTIVE,
+            )
+        )
+        row = result.scalars().one_or_none()
+        return self._to_entity(row) if row else None
+
+    async def is_platform_admin(self, user_id: uuid.UUID) -> bool:
+        """Se a pessoa é admin da plataforma — vínculo `platform_admin` ativo na organização
+        `platform`.
+
+        Não recebe organização de propósito: é o único papel cuja pergunta não é "nesta
+        organização". A Widelab opera o SaaS e alcança qualquer tenant."""
+
+        result = await self._session.execute(
+            sa.select(MembershipModel.id)
+            .join(OrganizationModel, MembershipModel.organization_id == OrganizationModel.id)
+            .where(
+                MembershipModel.user_id == user_id,
+                MembershipModel.role == Role.PLATFORM_ADMIN,
+                MembershipModel.status == MembershipStatus.ACTIVE,
+                OrganizationModel.type == OrganizationType.PLATFORM,
+                OrganizationModel.status == OrganizationStatus.ACTIVE,
+            )
+            .limit(1)
+        )
+        return result.scalars().one_or_none() is not None
+
+    async def list_active_for_user(self, user_id: uuid.UUID) -> list[MembershipWithOrganization]:
+        """Os vínculos ativos de uma pessoa, já com a organização de cada um — o payload do
+        `GET /api/me/contexto`.
+
+        Vínculo desativado ou organização desativada não entram: o contexto é a lista do que a
+        pessoa *pode* abrir agora, e é dela que o frontend monta o seletor de organização.
+        Devolver uma organização que o `current_organization` negaria em seguida seria oferecer
+        uma porta trancada."""
+
+        result = await self._session.execute(
+            sa.select(MembershipModel, OrganizationModel)
+            .join(OrganizationModel, MembershipModel.organization_id == OrganizationModel.id)
+            .where(
+                MembershipModel.user_id == user_id,
+                MembershipModel.status == MembershipStatus.ACTIVE,
+                OrganizationModel.status == OrganizationStatus.ACTIVE,
+            )
+            .order_by(OrganizationModel.name)
+        )
+
+        return [
+            MembershipWithOrganization(
+                membership=self._to_entity(membership),
+                organization=_organization_to_entity(organization),
+            )
+            for membership, organization in result.all()
+        ]
+
+    async def _get_model_by(self, condition: sa.ColumnElement[bool]) -> MembershipModel | None:
+        result = await self._session.execute(sa.select(MembershipModel).where(condition))
+        return result.scalars().one_or_none()
+
+    def _to_entity(self, row: MembershipModel) -> Membership:
+        return Membership(
+            id=row.id,
+            user_id=row.user_id,
+            organization_id=row.organization_id,
+            role=row.role,
             status=row.status,
             created_at=row.created_at,
         )

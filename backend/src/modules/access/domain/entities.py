@@ -8,12 +8,19 @@ from src.core.types import UNSET, BaseCreateCommand, BaseUpdateCommand, UnsetTyp
 
 __all__ = [
     "AgreementStatus",
+    "Membership",
+    "MembershipStatus",
+    "MembershipWithOrganization",
+    "NewMembership",
     "NewOrganization",
     "NewPartnerAgreement",
     "Organization",
     "OrganizationStatus",
     "OrganizationType",
     "PartnerAgreement",
+    "Persona",
+    "Role",
+    "UpdateMembership",
     "UpdateOrganization",
     "UpdatePartnerAgreement",
 ]
@@ -27,6 +34,46 @@ class OrganizationStatus(StrEnum):
 class AgreementStatus(StrEnum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
+
+
+class Role(StrEnum):
+    """O papel de uma pessoa **dentro de** uma organização.
+
+    Fixo por tipo de organização nesta fase — papéis definidos pelo cliente ganham spec
+    própria se um dia forem pedidos. Qual papel vale em qual tipo é `ROLES_BY_ORGANIZATION_TYPE`
+    (`domain/permissions.py`), e o banco recusa a combinação errada."""
+
+    PLATFORM_ADMIN = "platform_admin"
+
+    COMPANY_ADMIN = "company_admin"
+    HR = "hr"
+    FINANCE = "finance"
+    MANAGER = "manager"
+    COLLABORATOR = "collaborator"
+
+    PARTNER_ADMIN = "partner_admin"
+    PARTNER_OPERATOR = "partner_operator"
+
+
+class MembershipStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
+class Persona(StrEnum):
+    """A superfície de frontend que o vínculo abre. Derivada do tipo da organização ativa +
+    papel; não é coluna, é função dos dois (`persona_for`)."""
+
+    PLATFORM = "platform"
+    """A Widelab como operadora."""
+
+    COMPANY_ADMIN = "company_admin"
+    """Admin da Empresa — `company_admin`, `hr`, `finance` e `manager` compartilham a mesma
+    superfície; o que muda entre eles são as permissões, não a casca."""
+
+    COLLABORATOR = "collaborator"
+
+    PARTNER = "partner"
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,3 +136,52 @@ class NewPartnerAgreement(BaseCreateCommand):
 @dataclass(frozen=True, slots=True)
 class UpdatePartnerAgreement(BaseUpdateCommand):
     status: AgreementStatus | UnsetType = UNSET
+
+
+@dataclass(frozen=True, slots=True)
+class Membership:
+    """O vínculo usuário↔organização↔papel — a resposta a "quem é você **nesta**
+    organização".
+
+    Identidade (spec 02) é global; autorização é sempre dentro de uma organização. A mesma
+    pessoa pode ser `collaborator` numa Empresa e `partner_admin` num Parceiro, e é por isso
+    que papel não mora em `users` nem no token de sessão."""
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    organization_id: uuid.UUID
+    role: Role
+    status: MembershipStatus
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class MembershipWithOrganization:
+    """Um vínculo já com a organização do outro lado. É o que `GET /api/me/contexto` precisa
+    — listar vínculos sem o nome e o tipo da organização obrigaria o frontend a N chamadas
+    pra montar o seletor de organização."""
+
+    membership: Membership
+    organization: Organization
+
+
+@dataclass(frozen=True, slots=True)
+class NewMembership(BaseCreateCommand):
+    """Note o `organization_type`: ele é redundante com `organizations.type`, e existe pra ser
+    o segundo lado da FK composta que ancora o `CHECK` de papel×tipo no banco. Quem o preenche
+    é o repositório, lendo a organização — não é decisão de quem chama."""
+
+    user_id: uuid.UUID
+    organization_id: uuid.UUID
+    organization_type: OrganizationType
+    role: Role
+    status: MembershipStatus = MembershipStatus.ACTIVE
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateMembership(BaseUpdateCommand):
+    """Sem `organization_id` nem `user_id`: mover um vínculo de organização ou de pessoa não é
+    editar, é outro vínculo. O que muda é papel e status."""
+
+    role: Role | UnsetType = UNSET
+    status: MembershipStatus | UnsetType = UNSET

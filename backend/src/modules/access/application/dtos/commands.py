@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 
 from src.core.tenancy import OrganizationType
-from src.modules.access.domain.entities import AgreementStatus
+from src.modules.access.domain.entities import AgreementStatus, MembershipStatus, Role
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,3 +25,12 @@ class CreateAgreementCommand:
 @dataclass(frozen=True, slots=True)
 class UpdateAgreementStatusCommand:
     status: AgreementStatus
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateMembershipCommand:
+    """Muda papel e/ou status de um membro. Os dois são opcionais e ao menos um é exigido —
+    `None` aqui é "não mexe", não "apaga"."""
+
+    role: Role | None = None
+    status: MembershipStatus | None = None
