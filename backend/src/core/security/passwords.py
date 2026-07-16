@@ -29,3 +29,21 @@ class Argon2PasswordHasher:
         """Indica se o hash deve ser regerado (parâmetros do Argon2 mudaram)."""
 
         return _hasher.check_needs_rehash(hashed)
+
+
+_default_hasher = Argon2PasswordHasher()
+
+
+def hash_password(plain: str) -> str:
+    """Gera o hash Argon2id de uma senha."""
+
+    return _default_hasher.hash(plain)
+
+
+def verify_password(plain: str, hashed: str | None) -> bool:
+    """Confere uma senha contra o hash. `hashed` é nulo enquanto o usuário não definiu senha
+    (convidado, ou identidade só via SSO futuro) — nesse caso não há senha a conferir."""
+
+    if hashed is None:
+        return False
+    return _default_hasher.verify(plain, hashed)

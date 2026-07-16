@@ -19,7 +19,7 @@ UNSET: Final = _Unset.UNSET
 type UnsetType = Literal[_Unset.UNSET]
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class BaseCreateCommand:
     """Base de comando de criação. Todos os campos são obrigatórios."""
 
@@ -27,7 +27,7 @@ class BaseCreateCommand:
         return {f.name: getattr(self, f.name) for f in fields(self)}
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class BaseUpdateCommand:
     """Base de comando de atualização parcial. Campos não informados usam `UNSET` e são
     ignorados por `defined_values()`."""
