@@ -43,6 +43,12 @@ class ForbiddenError(AppError):
     message = "You do not have permission to perform this action."
 
 
+class GoneError(AppError):
+    status_code = 410
+    code = "gone"
+    message = "Resource no longer available."
+
+
 class ValidationAppError(AppError):
     status_code = 422
     code = "validation_error"

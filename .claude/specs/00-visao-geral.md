@@ -126,9 +126,9 @@ Da casa (Central / receipt-reader), não inventadas aqui:
 | 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada          |
 | 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada          |
 
-**Onde a fase 1 está (2026-07-16):** o **backend da fase 1 está fechado** (`01`–`05`) e o
-**frontend chegou na troca de organização** (`01`–`05`): dá pra logar, cair na cara certa da sua
-persona — com a navegação saindo dos módulos que o seu tenant contratou — e **trocar de
+**Onde a fase 1 está (2026-07-16):** o **backend da fase 1 está fechado de verdade** (`01`–`06`)
+e o **frontend chegou na troca de organização** (`01`–`05`): dá pra logar, cair na cara certa da
+sua persona — com a navegação saindo dos módulos que o seu tenant contratou — e **trocar de
 organização** quando se pertence a mais de uma. O eixo de identidade fecha de ponta a
 ponta; o `access` fechou os
 eixos de **autorização** e **entitlement**: `backend/03` entregou `organizations`, o convênio
@@ -139,6 +139,13 @@ subir a stack, logar, provisionar Empresas e Parceiros, conveniá-los, vincular 
 papel, **vender um módulo ligando um flag** — e **o backend nega de verdade**: 403 em tenant
 sem vínculo, 403 em permissão faltante e 403 em módulo não contratado.
 
+**Entrar no sistema deixou de ser CLI.** A `backend/06` fechou os dois caminhos de entrada de
+gente: o Colaborador/staff é **convidado** pela Empresa (`hr`/`company_admin`), aceita por um
+token opaco de uso único e já sai com senha, vínculo e sessão; o Parceiro **se auto-cadastra**
+(organização + primeiro `partner_admin` + sessão, numa transação atômica) e é associado a cada
+Empresa pelo convênio da `03`. A CLI de `grant` continua existindo pro bootstrap do primeiro
+`platform_admin` — que, esse sim, não tem quem o convide.
+
 **O guard de vínculo permissivo da `03` caiu.** Qualquer usuário autenticado alcançava qualquer
 organização ativa porque vínculo era `memberships`; agora `current_organization` confere o
 vínculo e afrouxa só pra `platform_admin`. O multi-tenant é real.
@@ -148,11 +155,18 @@ vínculo e afrouxa só pra `platform_admin`. O multi-tenant é real.
 ninguém, porque é fato comercial e não privilégio. `GET /api/organizacoes/{orgId}/eu` já
 devolve `modules`.
 
-**O que ainda falta pra fase 1:** a `backend/06` (convites e onboarding) — hoje criar vínculo
-ainda é CLI — e, no frontend, a `06` (onboarding). Com a `frontend/05` entregue, quem tem mais de
-um vínculo **troca de organização pelo seletor do masthead**, e o pós-login volta pra última
-organização visitada; trocar de organização é navegar pra outro `orgId`, e o cache do TanStack se
-separa sozinho porque as chaves o incluem.
+**O que ainda falta pra fase 1:** só frontend, e só a `06` (onboarding) — que agora tem backend
+pronto pra consumir: as telas de aceite (`GET /api/convites/{token}` é público) e de
+auto-cadastro de Parceiro. Com a `frontend/05` entregue, quem tem mais de um vínculo **troca de
+organização pelo seletor do masthead**, e o pós-login volta pra última organização visitada;
+trocar de organização é navegar pra outro `orgId`, e o cache do TanStack se separa sozinho porque
+as chaves o incluem.
+
+**Dois buracos que a `backend/06` deixou de propósito, e que o texto dela não previa:** não há
+rota pra **revogar** nem pra **listar** convites (revogar é `UPDATE` no `psql` hoje), e um
+**Parceiro não consegue crescer** — só Empresa convida, então o segundo membro de um Parceiro
+só nasce pela CLI. Nenhum dos dois estava nos critérios; os dois são spec nova. Ver
+`Como ficou` da `backend/06`.
 
 **Um furo da casca que a `frontend/04` registrou:** os metadados de navegação de um módulo
 (label, path) moram **no frontend**, não no contexto — o `/eu` devolve `modules` como lista de
@@ -161,12 +175,18 @@ A promessa comercial fica de pé (ligar o flag faz o item aparecer sem deploy), 
 o contrário. Ver `Como ficou` da `frontend/04`.
 
 **Duas dívidas atravessam a fase 1 e vale decidir antes da fase 2:** não existe **teste
-automatizado** de integração nenhum (specs 03/04/05 registram; a verificação é `curl` + `psql`) —
+automatizado** de integração nenhum (specs 03/04/05/06 registram; a verificação é `curl` + `psql`) —
 e agora o frontend tem a sua versão: as regras puras (`nav.ts`, `home-path.ts`) têm teste, mas a
 casca, os guards, o `Can` e o seletor de organização da `05` foram verificados só a olho, uma vez,
 no browser — e o `lib/last-org.ts`, que engole falha de `localStorage`, não tem rede nenhuma. E
 `ModuleDescriptor.permissions` **não tem mecanismo que ligue capability de módulo a papel** — o
 primeiro app de negócio esbarra nisso no primeiro endpoint. Ver `Como ficou` da `backend/05`.
+
+**A dívida de teste ficou mais cara com a `06`, e virou pré-requisito honesto da fase 2.** O uso
+único do token, a resposta uniforme do aceite e a atomicidade do auto-cadastro são propriedades
+que somem numa refatoração sem ninguém notar — e a verificação delas hoje é manual e não se
+repete. Uma spec de infra de teste (`pytest` + Postgres efêmero) deixou de ser "o próximo
+candidato óbvio" e passou a ser o que separa a fase 1 de uma fase 2 segura.
 
 O faseamento é desenhado pra que os apps (fases 2+) **não toquem no núcleo**: cada um entra
 como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement.
@@ -186,7 +206,7 @@ Backend:
 3. ✅ `backend/03-organizacoes-e-tenancy.md` — `Organization` (plataforma/empresa/parceiro), escopo por tenant, o convênio Empresa↔Parceiro. **Guard de vínculo fechado pela 04.**
 4. ✅ `backend/04-membros-e-autorizacao.md` — `Membership` (usuário↔org+papel), papéis/permissões, `require_permission`, resolução de persona.
 5. ✅ `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar. **Fase 1 do backend fechada.**
-6. ⬜ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **← próxima**
+6. ✅ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **Fase 1 do backend fechada.** Sem rota de revogar/listar convite, e Parceiro não convida — ver `Como ficou`.
 
 Frontend:
 
@@ -195,7 +215,7 @@ Frontend:
 3. ✅ `frontend/03-login-e-sessao.md` — tela de login, ciclo de sessão, cliente da API de identidade.
 4. ✅ `frontend/04-casca-e-personas.md` — app shell, navegação derivada de vínculos + entitlements, guard de acesso. **Fase 1 do frontend fechada.** Não há route group por persona: persona é runtime, route group é estático — ver `Como ficou`.
 5. ✅ `frontend/05-selecao-de-organizacao.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas). O último `orgId` visitado passou a ganhar do atalho da Plataforma no pós-login — muda uma decisão da `04`, ver `Como ficou`.
-6. ⬜ `frontend/06-onboarding.md` — telas de aceite de convite, definição de senha e primeiro acesso por persona. **← próxima do frontend**
+6. ⬜ `frontend/06-onboarding.md` — telas de aceite de convite, definição de senha e primeiro acesso por persona. **← próxima, e a última da fase 1**
 
 ## O que não fazer (fora de escopo desta fase)
 

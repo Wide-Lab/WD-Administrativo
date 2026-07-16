@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from src.core.modules import ModuleDescriptor, ModuleNav
 from src.core.pagination.params import Page
@@ -11,6 +11,9 @@ from src.modules.access.application.use_cases.get_my_membership import MyMembers
 from src.modules.access.application.use_cases.list_modules import OrganizationModules
 from src.modules.access.domain.entities import (
     AgreementStatus,
+    Invitation,
+    InvitationStatus,
+    InvitationWithOrganization,
     Membership,
     MembershipStatus,
     MembershipWithOrganization,
@@ -242,6 +245,91 @@ class UpdateMemberRequest(BaseModel):
 
     role: Role | None = None
     status: MembershipStatus | None = None
+
+
+class CreateInvitationRequest(BaseModel):
+    """A organização não vem no corpo: é a do path. Aceitá-la aqui abriria convidar em nome de
+    outra — o critério 4 da spec 06."""
+
+    email: EmailStr
+    role: Role
+
+
+class InvitationResponse(BaseModel):
+    """O convite como quem convidou o vê.
+
+    **Sem o `token`**: ele é credencial e sai por e-mail, para o convidado. Devolvê-lo aqui
+    deixaria qualquer `hr` aceitar o convite que emitiu no lugar da pessoa, e o e-mail deixaria
+    de ser a prova de que quem aceitou controla a caixa."""
+
+    id: uuid.UUID
+    email: EmailStr
+    organization_id: uuid.UUID
+    role: Role
+    status: InvitationStatus
+    expires_at: datetime
+    invited_by: uuid.UUID
+    created_at: datetime
+
+    @classmethod
+    def from_entity(cls, entity: Invitation) -> InvitationResponse:
+        return cls(
+            id=entity.id,
+            email=entity.email,
+            organization_id=entity.organization_id,
+            role=entity.role,
+            status=entity.status,
+            expires_at=entity.expires_at,
+            invited_by=entity.invited_by,
+            created_at=entity.created_at,
+        )
+
+
+class PublicInvitationResponse(BaseModel):
+    """`GET /api/convites/{token}` — o mínimo que a tela pública de aceite precisa pintar.
+
+    Público, então cada campo é uma decisão: o nome da organização e o papel explicam à pessoa
+    o que ela está aceitando, e o e-mail deixa a tela dizer para quem o convite é sem pedir que
+    ela o digite. Nada de ids internos — quem ainda não aceitou não é membro de nada."""
+
+    organization_name: str
+    email: EmailStr
+    role: Role
+    expires_at: datetime
+
+    @classmethod
+    def from_entity(cls, entity: InvitationWithOrganization) -> PublicInvitationResponse:
+        return cls(
+            organization_name=entity.organization.name,
+            email=entity.invitation.email,
+            role=entity.invitation.role,
+            expires_at=entity.invitation.expires_at,
+        )
+
+
+class AcceptInvitationRequest(BaseModel):
+    """`name` é opcional porque quem já tem conta já tem nome. A senha segue a mesma política
+    do `PUT /api/me/password` (spec 02) — 8 caracteres."""
+
+    password: str = Field(min_length=8)
+    name: str | None = Field(default=None, min_length=1)
+
+
+class RegisterPartnerAdminRequest(BaseModel):
+    name: str = Field(min_length=1)
+    email: EmailStr
+    password: str = Field(min_length=8)
+
+
+class RegisterPartnerRequest(BaseModel):
+    """`POST /api/parceiros/cadastro`.
+
+    `company_name` é o nome do **Parceiro**, não de uma Empresa — o nome do campo é o que a
+    spec 06 fixou no payload, e mudá-lo aqui seria mudar o contrato. Ver `Como ficou`."""
+
+    company_name: str = Field(min_length=1)
+    admin: RegisterPartnerAdminRequest
+    document: str | None = None
 
 
 class PageResponse[ItemT](BaseModel):

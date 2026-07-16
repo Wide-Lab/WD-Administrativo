@@ -41,6 +41,14 @@ class PlatformPermissions:
     """Conveniar um Parceiro, suspender ou reativar o convênio. Só faz sentido numa Empresa —
     o `CreateAgreementUseCase` recusa os outros tipos."""
 
+    INVITATIONS_WRITE: Permission = "invitations.write"
+    """Convidar alguém pra organização ativa, com um papel já definido.
+
+    É `members.write` de uma pessoa que ainda não é membro — e não se confunde com ele: quem
+    edita vínculo existente mexe em quem já entrou, quem convida decide quem entra. O `hr`
+    tem esta e **não** tem `members.write`, e é exatamente essa a diferença entre os dois
+    papéis nesta fase."""
+
     MODULES_READ: Permission = "modules.read"
     """Ver o que a Empresa ativa contratou, junto do catálogo do que dá pra contratar."""
 
@@ -90,9 +98,15 @@ PERMISSIONS_BY_ROLE: Mapping[Role, frozenset[Permission]] = {
             PlatformPermissions.MEMBERS_READ,
             PlatformPermissions.MEMBERS_WRITE,
             PlatformPermissions.AGREEMENTS_WRITE,
+            PlatformPermissions.INVITATIONS_WRITE,
         }
     ),
-    Role.HR: frozenset({PlatformPermissions.MEMBERS_READ}),
+    Role.HR: frozenset(
+        {
+            PlatformPermissions.MEMBERS_READ,
+            PlatformPermissions.INVITATIONS_WRITE,
+        }
+    ),
     Role.FINANCE: frozenset(),
     Role.MANAGER: frozenset(),
     Role.COLLABORATOR: frozenset(),

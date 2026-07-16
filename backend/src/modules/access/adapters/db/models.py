@@ -13,13 +13,14 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import CITEXT, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database.base_model import Base
 from src.core.tenancy import OrganizationType
 from src.modules.access.domain.entities import (
     AgreementStatus,
+    InvitationStatus,
     MembershipStatus,
     OrganizationStatus,
     Role,
@@ -28,7 +29,14 @@ from src.modules.access.domain.permissions import ROLES_BY_ORGANIZATION_TYPE
 
 
 def _pg_enum[
-    EnumT: type[OrganizationType | OrganizationStatus | AgreementStatus | Role | MembershipStatus]
+    EnumT: type[
+        OrganizationType
+        | OrganizationStatus
+        | AgreementStatus
+        | Role
+        | MembershipStatus
+        | InvitationStatus
+    ]
 ](
     enum: EnumT,
     name: str,
@@ -46,8 +54,13 @@ def role_check_sql() -> str:
     """O `CHECK` de papel×tipo de organização, gerado a partir de `ROLES_BY_ORGANIZATION_TYPE`.
 
     Gerado, e não escrito à mão, pra o banco e o mapa do domínio não poderem divergir — se um
-    papel novo entrar no mapa sem migration, o `--autogenerate` acusa. A migration `0003`
-    importa esta mesma função."""
+    papel novo entrar no mapa sem migration, o `--autogenerate` acusa. As migrations `0003` e
+    `0005` importam esta mesma função.
+
+    Serve `memberships` e `invitations` sem parametrização porque as duas tabelas nomeiam as
+    colunas igual (`organization_type`, `role`) — e não é coincidência: um convite é um vínculo
+    que ainda não aconteceu, e a mesma regra tem que valer nos dois. Se valesse só em
+    `memberships`, dava pra convidar um `hr` pra um Parceiro e só descobrir no aceite."""
 
     clauses = [
         "(organization_type = '{type}' AND role IN ({roles}))".format(
@@ -282,6 +295,82 @@ class Membership(Base):
         _pg_enum(MembershipStatus, "membership_status"),
         server_default=MembershipStatus.ACTIVE.value,
     )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+
+class Invitation(Base):
+    """Um convite pendente — o vínculo que ainda não existe.
+
+    **`invited_by` não declara `ForeignKey` aqui pelo mesmo motivo de `Membership.user_id`**: a
+    FK pra `users` existe na migration `0005`, mas declará-la no model obrigaria este arquivo a
+    importar os models do `auth`. Ver o docstring de `Membership`.
+
+    Note que **não há `user_id`**: o convidado pode não existir ainda, e é justamente esse o
+    caso principal. O que amarra o convite a uma pessoa é o `email` — e só no aceite ele vira
+    `user_id` num `membership`."""
+
+    __tablename__ = "invitations"
+
+    __table_args__ = (
+        # A mesma âncora de `memberships`: a FK composta fixa que `organization_type` é *mesmo*
+        # o tipo da organização apontada, e o CHECK abaixo se apoia nela. Sem ela o CHECK seria
+        # decorativo.
+        ForeignKeyConstraint(
+            ["organization_id", "organization_type"],
+            ["organizations.id", "organizations.type"],
+            name="fk_invitations_organization",
+            ondelete="CASCADE",
+        ),
+        # Não dá pra convidar um `hr` pra um Parceiro. É a mesma regra de `memberships`, e vale
+        # aqui porque o convite carrega o papel: sem este CHECK, o convite seria criado e só
+        # falharia no aceite — o erro apareceria na cara do convidado, não na de quem convidou
+        # errado.
+        CheckConstraint(role_check_sql(), name="ck_invitations_role_matches_organization_type"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+    )
+
+    email: Mapped[str] = mapped_column(CITEXT, index=True)
+    """CITEXT, como em `users`: quem foi convidado como `Ana@x.com` aceita logando como
+    `ana@x.com`. Sem unicidade — a mesma pessoa pode ser convidada por duas Empresas, e
+    convite recusado/expirado não pode bloquear um novo."""
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
+
+    organization_type: Mapped[OrganizationType] = mapped_column(
+        _pg_enum(OrganizationType, "organization_type"),
+    )
+    """Denormalizado de `organizations.type`, ancorado pela FK composta — existe só pra dar ao
+    `CHECK` acesso ao tipo. Ver o mesmo campo em `Membership`."""
+
+    role: Mapped[Role] = mapped_column(_pg_enum(Role, "membership_role"))
+    """Reusa o enum `membership_role` de propósito: o papel que o convite promete é o papel que
+    o vínculo terá. Um enum próprio poderia divergir do outro sem ninguém notar."""
+
+    token: Mapped[str] = mapped_column(Text, unique=True, index=True)
+    """Opaco, uso único (`secrets.token_urlsafe`). É credencial: quem o tem aceita o convite,
+    então o único é o que garante que dois convites nunca colidam."""
+
+    status: Mapped[InvitationStatus] = mapped_column(
+        _pg_enum(InvitationStatus, "invitation_status"),
+        server_default=InvitationStatus.PENDING.value,
+    )
+    """`expired` não é gravado por ninguém — quem sabe se venceu é `expires_at`. Ver o
+    docstring de `InvitationStatus`."""
+
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    invited_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    """Aponta pra `users.id`, tabela do `auth`. A FK vive na migration — ver o docstring da
+    classe."""
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

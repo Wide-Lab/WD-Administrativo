@@ -9,15 +9,19 @@ from src.modules.access.application.dtos.filters import (
     PartnerAgreementFilters,
 )
 from src.modules.access.domain.entities import (
+    Invitation,
+    InvitationWithOrganization,
     Membership,
     MembershipWithOrganization,
     ModuleEntitlement,
+    NewInvitation,
     NewMembership,
     NewModuleEntitlement,
     NewOrganization,
     NewPartnerAgreement,
     Organization,
     PartnerAgreement,
+    UpdateInvitation,
     UpdateMembership,
     UpdateOrganization,
     UpdatePartnerAgreement,
@@ -83,6 +87,27 @@ class ModuleEntitlementRepositoryProtocol(Protocol):
     async def create(self, create_command: NewModuleEntitlement) -> ModuleEntitlement: ...
 
     async def delete(self, organization_id: uuid.UUID, module_key: ModuleKey) -> bool: ...
+
+
+class InvitationRepositoryProtocol(Protocol):
+    """Contrato do repositório de convites consumido pelos use cases de `access`."""
+
+    async def get_by_token_or_none(self, token: str) -> Invitation | None: ...
+
+    async def get_with_organization_by_token(
+        self,
+        token: str,
+    ) -> InvitationWithOrganization | None: ...
+
+    async def create(self, create_command: NewInvitation) -> Invitation: ...
+
+    async def update(
+        self,
+        id_: uuid.UUID,
+        update_command: UpdateInvitation,
+    ) -> Invitation: ...
+
+    async def mark_accepted_if_pending(self, id_: uuid.UUID) -> bool: ...
 
 
 class MembershipRepositoryProtocol(Protocol):

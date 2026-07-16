@@ -6,8 +6,11 @@ nunca importar `auth`."""
 from src.core.security.identity import (
     Authenticator,
     CurrentUser,
+    UserDirectory,
+    UserDirectoryDep,
     UserId,
     UserReader,
+    set_user_directory_factory,
     set_user_reader_factory,
 )
 from src.core.security.passwords import hash_password, verify_password
@@ -24,6 +27,8 @@ __all__ = [
     "Authenticator",
     "CurrentUser",
     "CurrentUserDep",
+    "UserDirectory",
+    "UserDirectoryDep",
     "UserId",
     "UserReader",
     "clear_session_cookie",
@@ -32,6 +37,7 @@ __all__ = [
     "issue_session",
     "read_session",
     "set_session_cookie",
+    "set_user_directory_factory",
     "set_user_reader_factory",
     "verify_password",
 ]
