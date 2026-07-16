@@ -22,43 +22,60 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 02 | identidade e sessão (`auth`) | ✅ | design system | ✅ |
 | 03 | organizações e tenancy (`access`) | ✅ | login e sessão | ✅ |
 | 04 | membros e autorização (`access`) | ✅ | casca e personas | ⬜¹ |
-| 05 | módulos e entitlements (`access`) | ⬜ | seleção de organização | ⬜ |
+| 05 | módulos e entitlements (`access`) | ✅ | seleção de organização | ⬜ |
 | 06 | convites e onboarding (`access`) | ⬜ | onboarding | ⬜ |
 
-¹ frontend `04` está **destravado** (backend `03`+`04` entregues), mas a navegação derivada de
-módulos só fecha com backend `05` — hoje `GET /api/organizacoes/{orgId}/eu` devolve papel,
-persona e permissões, e **não** `modules`.
+¹ frontend `04` está **destravado por inteiro**: com backend `05` entregue, `GET
+/api/organizacoes/{orgId}/eu` devolve papel, persona, permissões **e** `modules` — a navegação
+derivada de módulos tem de onde sair.
 
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
 `Fora de escopo` / `Critérios de aceite`).
 
-## Estado atual — kernel completo no eixo de autorização; falta entitlement
+## Estado atual — kernel completo; a fase 1 do backend fechou
 
-Backend `01`–`04` e frontend `01`–`03` estão implementados: dá pra subir a stack, logar,
-provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel — e **o backend nega
-de verdade** (403 em tenant sem vínculo, 403 em permissão faltante). **A próxima entrega é
-`backend/05-modulos-e-entitlements.md`** (`require_module`, flag por tenant); frontend `04`
-está destravado e pode andar em paralelo.
+Backend `01`–`05` e frontend `01`–`03` estão implementados: dá pra subir a stack, logar,
+provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel, **vender módulo
+ligando um flag** — e **o backend nega de verdade** (403 em tenant sem vínculo, 403 em permissão
+faltante, 403 em módulo não contratado). **A próxima entrega é `frontend/04-casca-e-personas.md`**,
+agora destravada por inteiro; no backend, o que resta antes da fase 2 é a `06` (convites), e
+criar vínculo segue sendo CLI até lá.
 
 O que existe hoje:
 
-- `backend/` — `src/core` (config, database, security, **tenancy**, **authz**, exceptions,
-  logging, pagination, types) + `src/modules/auth/` completo: login, logout, `GET /api/me`,
-  `PUT /api/me/password`, CLI de bootstrap, migration `0001_users`.
+- `backend/` — `src/core` (config, database, security, **tenancy**, **authz**, **modules**,
+  exceptions, logging, pagination, types) + `src/modules/auth/` completo: login, logout,
+  `GET /api/me`, `PUT /api/me/password`, CLI de bootstrap, migration `0001_users`.
 - `src/modules/access/` — `organizations` (platform/company/partner), `partner_agreements`
-  (convênio) e `memberships` (usuário↔org↔papel). Rotas: `POST`/`GET /api/organizacoes`,
-  `GET /api/organizacoes/{orgId}`, `/convenios` (criar, listar, suspender/reativar),
-  `GET /api/me/contexto`, `GET /api/organizacoes/{orgId}/eu`, `GET`/`PATCH
-  /api/organizacoes/{orgId}/membros`. Migrations `0002_organizations` — que **semeia a
-  organização `platform`** (`01890000-0000-7000-8000-000000000001`) — e `0003_memberships`.
+  (convênio), `memberships` (usuário↔org↔papel) e `module_entitlements` (Empresa↔módulo).
+  Rotas: `POST`/`GET /api/organizacoes`, `GET /api/organizacoes/{orgId}`, `/convenios` (criar,
+  listar, suspender/reativar), `GET /api/me/contexto`, `GET /api/organizacoes/{orgId}/eu`,
+  `GET`/`PATCH /api/organizacoes/{orgId}/membros`, `GET`/`PUT`/`DELETE
+  /api/organizacoes/{orgId}/modulos[/{chave}]`. Migrations `0002_organizations` — que **semeia
+  a organização `platform`** (`01890000-0000-7000-8000-000000000001`) —, `0003_memberships` e
+  `0004_module_entitlements`.
 - **Papéis e permissões são fixos e declarados em código**, em `access/domain/permissions.py`
   (`ROLES_BY_ORGANIZATION_TYPE`, `PERMISSIONS_BY_ROLE`, `persona_for`). Papel só vale no tipo
   de organização certo, e **quem garante é o banco**: `memberships` tem um `organization_type`
   ancorado por FK composta contra `organizations(id, type)` + um `CHECK` **gerado** do mapa do
   domínio. Mexeu no mapa, mexe na migration.
-- **Entitlement de módulo não existe** — é a `05`. Por isso `require_module` não existe e o
-  `/eu` ainda não devolve `modules`.
+- **Entitlement é presença de linha em `module_entitlements`** — não há coluna de ligado, e
+  ausência é negação. Só Empresa contrata, e quem garante é o banco (FK composta contra
+  `organizations(id, type)`, tipo fixado em coluna gerada). `require_module` (`core/modules/`)
+  nega com 403 e **não afrouxa pra `platform_admin`** — diferente de `require_permission`, a
+  pergunta é o que o *tenant* comprou, não quem é o usuário. Só `platform_admin` liga/desliga
+  (`modules.read`/`modules.write`).
+- **Módulo de negócio pluga com uma linha:** `mount_module(api, <ModuleDescriptor>)` em
+  `mount_routes` registra o módulo no `ModuleRegistry` e pendura as rotas sob
+  `/api/organizacoes/{orgId}/<chave>/*` já atrás do `require_module` — prefixo e guard não são
+  disciplina do módulo. `refeicoes` e `frota` existem só como **chaves registradas** em
+  `src/api/modules.py` (placeholder até as fases 2/3; o descritor vai pro módulo quando ele
+  existir).
+- **Furo conhecido, e é da fase 2:** `ModuleDescriptor.permissions` é declarativo e **não liga
+  em nada** — não existe mecanismo que ligue capability de módulo a papel (`PERMISSIONS_BY_ROLE`
+  é do `access`, e módulo não importa módulo). O primeiro app de negócio esbarra nisso no
+  primeiro endpoint; ganha spec própria. Ver `Como ficou` da `backend/05`.
 - **Bootstrap de vínculo é CLI**, não rota (criar membro é convite, spec 06):
   `python -m src.modules.access.cli grant --email … --role … [--org …]`; sem `--org`, o alvo é
   a organização `platform`.
@@ -101,19 +118,23 @@ O que existe hoje:
   `mount_routes`, sem tocar `core`.
 - **`core` nunca importa módulo — a seta aponta pra dentro.** Quando o `core` precisa de algo
   que um módulo é dono (ex.: `current_user` precisa ler `users`, tabela do `auth`), o `core`
-  declara uma **porta** e o módulo **registra a implementação** em `mount_routes`. São três
+  declara uma **porta** e o módulo **registra a implementação** em `mount_routes`. São quatro
   casos, todos de kernel: `UserReader` (`core/security/identity.py`) ↔
   `set_user_reader_factory(SqlAlchemyUserReader)`; `OrganizationReader`
   (`core/tenancy/context.py`) ↔ `set_organization_reader_factory(SqlAlchemyOrganizationReader)`;
-  e `PermissionReader` (`core/authz/context.py`) ↔
-  `set_permission_reader_factory(SqlAlchemyMembershipReader)`.
+  `PermissionReader` (`core/authz/context.py`) ↔
+  `set_permission_reader_factory(SqlAlchemyMembershipReader)`; e `ModuleEntitlementReader`
+  (`core/modules/entitlements.py`) ↔
+  `set_module_entitlement_reader_factory(SqlAlchemyModuleEntitlementReader)`.
   Ganhar linha extra no `mount_routes` é **privilégio de kernel** — app de negócio consome
-  `CurrentUserDep`/`CurrentOrganizationDep`/`require_permission(...)` e pronto, sem tocar `core`.
+  `CurrentUserDep`/`CurrentOrganizationDep`/`require_permission(...)`/`require_module(...)` e
+  pronto, sem tocar `core`; plugar é `mount_module(api, <descritor>)`, uma linha.
 - **Autorização entra por capability, não por papel.** Rota e guard nomeiam a permissão
   (`require_permission("agreements.write")`); quem decide qual papel a tem é
   `PERMISSIONS_BY_ROLE`, no `access`. O `core` não conhece papel nenhum, e `Permission` é `str`
-  de propósito: o kernel declara as permissões da plataforma, cada módulo de negócio declarará
-  as suas (spec 05). Papel/tenant **nunca** entram no token de sessão — mudam a cada request.
+  de propósito: o kernel declara as permissões da plataforma, e cada módulo de negócio declara
+  as suas no descritor — **que hoje não liga em nada**, ver o furo conhecido acima.
+  Papel/tenant **nunca** entram no token de sessão — mudam a cada request.
 - **Schema só via Alembic**, sem `create_all`. Nomes de tabela `snake_case` no plural, **sem**
   prefixo `T0xx`. E-mail é `CITEXT`; senha é **Argon2id**, nunca bcrypt.
 - **Rotas em português; tenant no path.** `/api/me*` é o usuário global; `/api/organizacoes/{orgId}/eu`

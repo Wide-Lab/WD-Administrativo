@@ -126,23 +126,33 @@ Da casa (Central / receipt-reader), não inventadas aqui:
 | 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada          |
 | 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada          |
 
-**Onde a fase 1 está (2026-07-16):** o eixo de **identidade** está fechado de ponta a ponta
-(backend `01`–`02`, frontend `01`–`03`), e o **`access` fechou o eixo de autorização**:
-`backend/03` entregou `organizations`, o convênio Empresa↔Parceiro e o contexto de tenant, e
-`backend/04` entregou `memberships`, os papéis por tipo de organização, o `require_permission`
-e a persona. Dá pra subir a stack, logar, provisionar Empresas e Parceiros, conveniá-los,
-vincular pessoas com papel — e **o backend nega de verdade**: 403 em tenant sem vínculo e 403
-em permissão faltante.
+**Onde a fase 1 está (2026-07-16):** o **backend da fase 1 está fechado** (`01`–`05`), e o
+frontend está em `01`–`03`. O eixo de identidade fecha de ponta a ponta; o `access` fechou os
+eixos de **autorização** e **entitlement**: `backend/03` entregou `organizations`, o convênio
+Empresa↔Parceiro e o contexto de tenant; `backend/04` entregou `memberships`, os papéis por
+tipo de organização, o `require_permission` e a persona; e `backend/05` entregou o
+`ModuleRegistry`, `module_entitlements`, o `require_module` e o contrato de plugagem. Dá pra
+subir a stack, logar, provisionar Empresas e Parceiros, conveniá-los, vincular pessoas com
+papel, **vender um módulo ligando um flag** — e **o backend nega de verdade**: 403 em tenant
+sem vínculo, 403 em permissão faltante e 403 em módulo não contratado.
 
 **O guard de vínculo permissivo da `03` caiu.** Qualquer usuário autenticado alcançava qualquer
 organização ativa porque vínculo era `memberships`; agora `current_organization` confere o
 vínculo e afrouxa só pra `platform_admin`. O multi-tenant é real.
 
-**O que ainda falta pra fase 1:** entitlement de módulo — cada Empresa só enxergar o que
-contratou — é `backend/05`, e sem ele `require_module` não existe e o `GET
-/api/organizacoes/{orgId}/eu` ainda não devolve `modules`. **A próxima entrega é
-`backend/05-modulos-e-entitlements.md`**. `frontend/04` está **destravado** (backend `03`+`04`
-entregues) e pode andar em paralelo, sabendo que a navegação por módulo só fecha com a `05`.
+**Entitlement não afrouxa nem pra Widelab.** `require_permission` afrouxa pra `platform_admin`;
+`require_module` não afrouxa pra ninguém — um módulo que a Empresa não comprou não abre pra
+ninguém, porque é fato comercial e não privilégio. `GET /api/organizacoes/{orgId}/eu` já
+devolve `modules`.
+
+**O que ainda falta pra fase 1:** só frontend. `frontend/04` está **destravado por inteiro** —
+a navegação derivada de módulos, que dependia da `05`, agora tem de onde sair. No backend, a
+`06` (convites e onboarding) é o que resta antes da fase 2, e hoje criar vínculo ainda é CLI.
+
+**Duas dívidas atravessam a fase 1 e vale decidir antes da fase 2:** não existe **teste
+automatizado** nenhum (specs 03/04/05 registram; a verificação é `curl` + `psql`), e
+`ModuleDescriptor.permissions` **não tem mecanismo que ligue capability de módulo a papel** — o
+primeiro app de negócio esbarra nisso no primeiro endpoint. Ver `Como ficou` da `backend/05`.
 
 O faseamento é desenhado pra que os apps (fases 2+) **não toquem no núcleo**: cada um entra
 como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement.
@@ -161,15 +171,15 @@ Backend:
 2. ✅ `backend/02-identidade-e-sessao.md` — usuário, login e-mail+senha (Argon2id), sessão, `GET /me`; a porta trocável pro SSO da Central.
 3. ✅ `backend/03-organizacoes-e-tenancy.md` — `Organization` (plataforma/empresa/parceiro), escopo por tenant, o convênio Empresa↔Parceiro. **Guard de vínculo fechado pela 04.**
 4. ✅ `backend/04-membros-e-autorizacao.md` — `Membership` (usuário↔org+papel), papéis/permissões, `require_permission`, resolução de persona.
-5. ⬜ `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar. **← próxima**
-6. ⬜ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio).
+5. ✅ `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar. **Fase 1 do backend fechada.**
+6. ⬜ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **← próxima**
 
 Frontend:
 
 1. ✅ `frontend/01-fundacao.md` — scaffold Next (App Router), TS strict, Tailwind, shadcn, TanStack Query, zod, estrutura por feature, tooling.
 2. ✅ `frontend/02-design-system.md` — tokens/tema derivados do protótipo (escuro, acento azul), tipografia, foco, motion.
 3. ✅ `frontend/03-login-e-sessao.md` — tela de login, ciclo de sessão, cliente da API de identidade.
-4. ⬜ `frontend/04-casca-e-personas.md` — app shell, route groups por persona, navegação derivada de vínculos + entitlements, guard de acesso. **Destravada** (`backend/03`+`04` entregues); a parte de entitlements depende de `backend/05`.
+4. ⬜ `frontend/04-casca-e-personas.md` — app shell, route groups por persona, navegação derivada de vínculos + entitlements, guard de acesso. **Destravada por inteiro** — `backend/05` entregue, e o `/eu` já devolve `modules`. **← próxima do frontend**
 5. ⬜ `frontend/05-selecao-de-organizacao.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas).
 6. ⬜ `frontend/06-onboarding.md` — telas de aceite de convite, definição de senha e primeiro acesso por persona.
 
