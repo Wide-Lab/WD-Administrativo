@@ -126,11 +126,17 @@ Da casa (Central / receipt-reader), não inventadas aqui:
 | 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada          |
 | 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada          |
 
-**Onde a fase 1 está (2026-07-16):** o eixo de **identidade** está fechado de ponta a ponta —
-backend `01`–`02` e frontend `01`–`03` implementados, dá pra subir a stack, logar e manter
-sessão. Falta todo o eixo de **`access`** (organizações, membros, autorização, entitlements,
-onboarding), que é o que faz esta plataforma ser multi-tenant e não só um login. **A próxima
-entrega é `backend/03-organizacoes-e-tenancy.md`**, que destrava `frontend/04`.
+**Onde a fase 1 está (2026-07-16):** o eixo de **identidade** está fechado de ponta a ponta
+(backend `01`–`02`, frontend `01`–`03`), e o **`access` começou**: `backend/03` entregou
+`organizations`, o convênio Empresa↔Parceiro e o contexto de tenant (`current_organization`,
+repositório tenant-scoped). Dá pra subir a stack, logar, provisionar Empresas e Parceiros e
+conveniá-los.
+
+**O que ainda falta pra plataforma ser multi-tenant de verdade:** a `03` subiu com o **guard
+de vínculo permissivo** — qualquer usuário autenticado alcança qualquer organização ativa,
+porque vínculo é `memberships`, da `04`. Enquanto a `04` não entra, o eixo de autorização
+está desenhado mas não fecha. **A próxima entrega é `backend/04-membros-e-autorizacao.md`**,
+que fecha o guard e, junto com a `03`, destrava `frontend/04`.
 
 O faseamento é desenhado pra que os apps (fases 2+) **não toquem no núcleo**: cada um entra
 como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement.
@@ -147,8 +153,8 @@ Backend:
 
 1. ✅ `backend/01-fundacao.md` — scaffold FastAPI hexagonal, Postgres async, Alembic, tooling, docker-compose, convenção de nomes.
 2. ✅ `backend/02-identidade-e-sessao.md` — usuário, login e-mail+senha (Argon2id), sessão, `GET /me`; a porta trocável pro SSO da Central.
-3. ⬜ `backend/03-organizacoes-e-tenancy.md` — `Organization` (plataforma/empresa/parceiro), escopo por tenant, o convênio Empresa↔Parceiro. **← próxima**
-4. ⬜ `backend/04-membros-e-autorizacao.md` — `Membership` (usuário↔org+papel), papéis/permissões, guard de autorização, resolução de persona.
+3. ✅ `backend/03-organizacoes-e-tenancy.md` — `Organization` (plataforma/empresa/parceiro), escopo por tenant, o convênio Empresa↔Parceiro. **Guard de vínculo ainda permissivo — fecha na 04.**
+4. ⬜ `backend/04-membros-e-autorizacao.md` — `Membership` (usuário↔org+papel), papéis/permissões, guard de autorização, resolução de persona. **← próxima**
 5. ⬜ `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar.
 6. ⬜ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio).
 

@@ -20,32 +20,44 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 |---|---|---|---|---|
 | 01 | fundação (FastAPI hexagonal) | ✅ | fundação (Next App Router) | ✅ |
 | 02 | identidade e sessão (`auth`) | ✅ | design system | ✅ |
-| 03 | organizações e tenancy (`access`) | ⬜ | login e sessão | ✅ |
+| 03 | organizações e tenancy (`access`) | ✅¹ | login e sessão | ✅ |
 | 04 | membros e autorização (`access`) | ⬜ | casca e personas | ⬜ |
 | 05 | módulos e entitlements (`access`) | ⬜ | seleção de organização | ⬜ |
 | 06 | convites e onboarding (`access`) | ⬜ | onboarding | ⬜ |
+
+¹ backend `03` subiu com o **guard de vínculo permissivo**: `current_organization` existe e
+nega de verdade, mas o `OrganizationReader` aceita qualquer organização ativa pra qualquer
+usuário autenticado — vínculo é `memberships`, da `04`. O critério 2 da spec só fecha lá.
 
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
 `Fora de escopo` / `Critérios de aceite`).
 
-## Estado atual — kernel `auth` de ponta a ponta; `access` ainda não existe
+## Estado atual — kernel `auth` completo; `access` com organizações e tenancy
 
-Backend `01`–`02` e frontend `01`–`03` estão implementados: dá pra subir a stack, logar com
-e-mail+senha e manter sessão. **A próxima entrega é `backend/03-organizacoes-e-tenancy.md`**
-(`Organization`, escopo por tenant, convênio), que destrava frontend `04`.
+Backend `01`–`03` e frontend `01`–`03` estão implementados: dá pra subir a stack, logar,
+provisionar Empresas/Parceiros e conveniá-los. **A próxima entrega é
+`backend/04-membros-e-autorizacao.md`** (`Membership`, papéis, guard) — ela fecha o guard
+permissivo da `03` e, junto com ela, destrava frontend `04`.
 
 O que existe hoje:
 
-- `backend/` — `src/core` (config, database, security, exceptions, logging, pagination,
-  types) + `src/modules/auth/` completo: login, logout, `GET /api/me`, `PUT /api/me/password`,
-  CLI de bootstrap, migration `0001_users`.
+- `backend/` — `src/core` (config, database, security, **tenancy**, exceptions, logging,
+  pagination, types) + `src/modules/auth/` completo: login, logout, `GET /api/me`,
+  `PUT /api/me/password`, CLI de bootstrap, migration `0001_users`.
+- `src/modules/access/` — `organizations` (platform/company/partner) e `partner_agreements`
+  (convênio), `POST`/`GET /api/organizacoes`, `GET /api/organizacoes/{orgId}`, e
+  `/convenios` (criar, listar, suspender/reativar). Migration `0002_organizations`, que
+  **semeia a organização `platform`** (`01890000-0000-7000-8000-000000000001`).
+- **`memberships`, papéis e permissões não existem** — é a `04`. Por isso os guards
+  `require_platform_admin`/`require_company_admin` (em `access/adapters/http/dependencies.py`)
+  hoje só exigem sessão, e cada um carrega o `TODO(spec 04)` do que falta.
 - `frontend/` — scaffold Next, design system (tokens em `src/styles.css`, primitivos shadcn,
   vitrine em `/design-system`), feature `auth` (`/entrar`, `use-session`, guarda de rota) e
   uma `/` autenticada **placeholder** — a home de verdade é decidida por frontend `04`.
 - `docker-compose.yml` + `nginx/` — stack completa (Postgres, backend, frontend, nginx).
-- `src/modules/access/`, os route groups por persona (`(admin)`/`(parceiro)`/`(colaborador)`)
-  e qualquer app de negócio **não existem ainda**. Não assuma — confirme lendo o diretório.
+- Os route groups por persona (`(admin)`/`(parceiro)`/`(colaborador)`) e qualquer app de
+  negócio **não existem ainda**. Não assuma — confirme lendo o diretório.
 
 ## Arquitetura (o retrato grande, que exige ler várias specs)
 
@@ -79,10 +91,12 @@ O que existe hoje:
   `mount_routes`, sem tocar `core`.
 - **`core` nunca importa módulo — a seta aponta pra dentro.** Quando o `core` precisa de algo
   que um módulo é dono (ex.: `current_user` precisa ler `users`, tabela do `auth`), o `core`
-  declara uma **porta** (`UserReader`, em `core/security/identity.py`) e o módulo **registra a
-  implementação** em `mount_routes` (`set_user_reader_factory(SqlAlchemyUserReader)`). É o
-  único caso em que um módulo ganha uma segunda linha no `mount_routes` — privilégio de
-  kernel, não de app de negócio.
+  declara uma **porta** e o módulo **registra a implementação** em `mount_routes`. São dois
+  casos, os dois de kernel: `UserReader` (`core/security/identity.py`) ↔
+  `set_user_reader_factory(SqlAlchemyUserReader)`, e `OrganizationReader`
+  (`core/tenancy/context.py`) ↔ `set_organization_reader_factory(SqlAlchemyOrganizationReader)`.
+  Ganhar uma segunda linha no `mount_routes` é **privilégio de kernel** — app de negócio
+  consome `CurrentUserDep`/`CurrentOrganizationDep` e pronto, sem tocar `core`.
 - **Schema só via Alembic**, sem `create_all`. Nomes de tabela `snake_case` no plural, **sem**
   prefixo `T0xx`. E-mail é `CITEXT`; senha é **Argon2id**, nunca bcrypt.
 - **Rotas em português; tenant no path.** `/api/me*` é o usuário global; `/api/organizacoes/{orgId}/eu`
