@@ -126,8 +126,10 @@ Da casa (Central / receipt-reader), não inventadas aqui:
 | 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada          |
 | 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada          |
 
-**Onde a fase 1 está (2026-07-16):** o **backend da fase 1 está fechado** (`01`–`05`), e o
-frontend está em `01`–`03`. O eixo de identidade fecha de ponta a ponta; o `access` fechou os
+**Onde a fase 1 está (2026-07-16):** o **backend da fase 1 está fechado** (`01`–`05`) e o
+**frontend chegou na casca** (`01`–`04`): dá pra logar e cair na cara certa da sua persona, com
+a navegação saindo dos módulos que o seu tenant contratou. O eixo de identidade fecha de ponta a
+ponta; o `access` fechou os
 eixos de **autorização** e **entitlement**: `backend/03` entregou `organizations`, o convênio
 Empresa↔Parceiro e o contexto de tenant; `backend/04` entregou `memberships`, os papéis por
 tipo de organização, o `require_permission` e a persona; e `backend/05` entregou o
@@ -145,12 +147,20 @@ vínculo e afrouxa só pra `platform_admin`. O multi-tenant é real.
 ninguém, porque é fato comercial e não privilégio. `GET /api/organizacoes/{orgId}/eu` já
 devolve `modules`.
 
-**O que ainda falta pra fase 1:** só frontend. `frontend/04` está **destravado por inteiro** —
-a navegação derivada de módulos, que dependia da `05`, agora tem de onde sair. No backend, a
-`06` (convites e onboarding) é o que resta antes da fase 2, e hoje criar vínculo ainda é CLI.
+**O que ainda falta pra fase 1:** a `backend/06` (convites e onboarding) — hoje criar vínculo
+ainda é CLI —, e no frontend a `05` (seletor de organização) e a `06` (onboarding). Com a
+`frontend/04` entregue, quem tem mais de um vínculo cai no primeiro: é a `05` que resolve.
+
+**Um furo da casca que a `frontend/04` registrou:** os metadados de navegação de um módulo
+(label, path) moram **no frontend**, não no contexto — o `/eu` devolve `modules` como lista de
+chaves, e o `ModuleNav` do descritor só sai pelo `GET /modulos`, que é de `platform_admin`.
+A promessa comercial fica de pé (ligar o flag faz o item aparecer sem deploy), mas a spec supunha
+o contrário. Ver `Como ficou` da `frontend/04`.
 
 **Duas dívidas atravessam a fase 1 e vale decidir antes da fase 2:** não existe **teste
-automatizado** nenhum (specs 03/04/05 registram; a verificação é `curl` + `psql`), e
+automatizado** de integração nenhum (specs 03/04/05 registram; a verificação é `curl` + `psql`) —
+e agora o frontend tem a sua versão: as regras puras (`nav.ts`, `home-path.ts`) têm teste, mas a
+casca, os guards e o `Can` foram verificados só a olho, uma vez, no browser. E
 `ModuleDescriptor.permissions` **não tem mecanismo que ligue capability de módulo a papel** — o
 primeiro app de negócio esbarra nisso no primeiro endpoint. Ver `Como ficou` da `backend/05`.
 
@@ -179,8 +189,8 @@ Frontend:
 1. ✅ `frontend/01-fundacao.md` — scaffold Next (App Router), TS strict, Tailwind, shadcn, TanStack Query, zod, estrutura por feature, tooling.
 2. ✅ `frontend/02-design-system.md` — tokens/tema derivados do protótipo (escuro, acento azul), tipografia, foco, motion.
 3. ✅ `frontend/03-login-e-sessao.md` — tela de login, ciclo de sessão, cliente da API de identidade.
-4. ⬜ `frontend/04-casca-e-personas.md` — app shell, route groups por persona, navegação derivada de vínculos + entitlements, guard de acesso. **Destravada por inteiro** — `backend/05` entregue, e o `/eu` já devolve `modules`. **← próxima do frontend**
-5. ⬜ `frontend/05-selecao-de-organizacao.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas).
+4. ✅ `frontend/04-casca-e-personas.md` — app shell, navegação derivada de vínculos + entitlements, guard de acesso. **Fase 1 do frontend fechada.** Não há route group por persona: persona é runtime, route group é estático — ver `Como ficou`.
+5. ⬜ `frontend/05-selecao-de-organizacao.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas). **← próxima do frontend**
 6. ⬜ `frontend/06-onboarding.md` — telas de aceite de convite, definição de senha e primeiro acesso por persona.
 
 ## O que não fazer (fora de escopo desta fase)
