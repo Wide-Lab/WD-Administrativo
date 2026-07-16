@@ -10,10 +10,12 @@ from src.modules.access.adapters.http.schemas import (
     ContextMembership,
     CreateAgreementRequest,
     CreateOrganizationRequest,
+    EnabledModuleResponse,
     MemberResponse,
     MeSummary,
     MyContextResponse,
     MyMembershipResponse,
+    OrganizationModulesResponse,
     OrganizationResponse,
     PageResponse,
     UpdateAgreementRequest,
@@ -23,6 +25,8 @@ from src.modules.access.adapters.http.types import (
     AgreementWriterDep,
     MemberReaderDep,
     MemberWriterDep,
+    ModuleReaderDep,
+    ModuleWriterDep,
     PageParamsDep,
     PlatformAdminDep,
     UnitOfWorkDep,
@@ -38,11 +42,14 @@ from src.modules.access.application.use_cases.create_agreement import CreateAgre
 from src.modules.access.application.use_cases.create_organization import (
     CreateOrganizationUseCase,
 )
+from src.modules.access.application.use_cases.disable_module import DisableModuleUseCase
+from src.modules.access.application.use_cases.enable_module import EnableModuleUseCase
 from src.modules.access.application.use_cases.get_my_context import GetMyContextUseCase
 from src.modules.access.application.use_cases.get_my_membership import GetMyMembershipUseCase
 from src.modules.access.application.use_cases.get_organization import GetOrganizationUseCase
 from src.modules.access.application.use_cases.list_agreements import ListAgreementsUseCase
 from src.modules.access.application.use_cases.list_members import ListMembersUseCase
+from src.modules.access.application.use_cases.list_modules import ListModulesUseCase
 from src.modules.access.application.use_cases.list_organizations import (
     ListOrganizationsUseCase,
 )
@@ -219,6 +226,56 @@ async def list_members(
         page,
         [MemberResponse.from_entity(item) for item in page.items],
     )
+
+
+@router.get("/organizacoes/{orgId}/modulos")
+async def list_modules(
+    organization: ModuleReaderDep,
+    uow: UnitOfWorkDep,
+) -> OrganizationModulesResponse:
+    """Os módulos habilitados da Empresa do path, mais o catálogo do que dá pra habilitar.
+
+    Visão de plataforma: é a tela de quem vende. Quem consome módulo não pergunta aqui — o
+    `GET /api/organizacoes/{orgId}/eu` já devolve as chaves habilitadas."""
+
+    use_case = ListModulesUseCase(uow=uow)
+    return OrganizationModulesResponse.from_result(await use_case.execute(organization))
+
+
+@router.put("/organizacoes/{orgId}/modulos/{chave}")
+async def enable_module(
+    user: CurrentUserDep,
+    organization: ModuleWriterDep,
+    uow: UnitOfWorkDep,
+    module_key: Annotated[str, Path(alias="chave")],
+) -> EnabledModuleResponse:
+    """Habilita um módulo na Empresa do path — vender é ligar o flag, sem deploy.
+
+    Idempotente: habilitar o que já está habilitado devolve 200 com o mesmo entitlement."""
+
+    use_case = EnableModuleUseCase(uow=uow)
+    entitlement = await use_case.execute(
+        organization=organization,
+        module_key=module_key,
+        granted_by=user.id,
+    )
+
+    return EnabledModuleResponse.from_entity(entitlement)
+
+
+@router.delete("/organizacoes/{orgId}/modulos/{chave}", status_code=status.HTTP_204_NO_CONTENT)
+async def disable_module(
+    organization: ModuleWriterDep,
+    uow: UnitOfWorkDep,
+    module_key: Annotated[str, Path(alias="chave")],
+) -> None:
+    """Desabilita um módulo na Empresa do path, apagando o entitlement.
+
+    A partir daqui as rotas do módulo voltam a responder 403. Idempotente: desabilitar o que já
+    está desabilitado é 204 também — o `DELETE` afirma um estado, e ele já é esse."""
+
+    use_case = DisableModuleUseCase(uow=uow)
+    await use_case.execute(organization=organization, module_key=module_key)
 
 
 @router.patch("/organizacoes/{orgId}/membros/{id}")

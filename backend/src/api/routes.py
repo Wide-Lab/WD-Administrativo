@@ -1,8 +1,11 @@
 from fastapi import APIRouter
 
+from src.api.modules import FROTA, REFEICOES
 from src.core.authz import set_permission_reader_factory
+from src.core.modules import mount_module, set_module_entitlement_reader_factory
 from src.core.security import set_user_reader_factory
 from src.core.tenancy import set_organization_reader_factory
+from src.modules.access.adapters.db.entitlement_reader import SqlAlchemyModuleEntitlementReader
 from src.modules.access.adapters.db.membership_reader import SqlAlchemyMembershipReader
 from src.modules.access.adapters.db.organization_reader import SqlAlchemyOrganizationReader
 from src.modules.access.adapters.http.routes import router as access_router
@@ -11,19 +14,23 @@ from src.modules.auth.adapters.http.routes import router as auth_router
 
 
 def mount_routes(api: APIRouter) -> None:
-    """Registra os routers dos módulos no router `/api`. Adicionar um módulo é uma linha
-    aqui — `app.include_router(<modulo>_router, prefix="/api")` — sem tocar em mais nada do
-    `core`.
+    """Registra os módulos no router `/api`.
+
+    Um app de negócio é **uma linha**: `mount_module(api, <descritor>)`. Ela registra o módulo
+    no catálogo e pendura as rotas dele sob `/organizacoes/{orgId}/<chave>`, atrás do
+    `require_module` — sem tocar em mais nada do `core`.
 
     `auth` e `access` são kernel e têm linha a mais: entregam ao `core` a implementação de uma
-    porta — `UserReader`, `OrganizationReader`, `PermissionReader` —, e é isso que deixa
-    `current_user`, `current_organization` e `require_permission` funcionarem sem o `core`
-    importar um módulo. É privilégio de kernel: um app de negócio consome
-    `CurrentUserDep`/`CurrentOrganizationDep`/`require_permission(...)` e pronto.
+    porta — `UserReader`, `OrganizationReader`, `PermissionReader`, `ModuleEntitlementReader`
+    —, e é isso que deixa `current_user`, `current_organization`, `require_permission` e
+    `require_module` funcionarem sem o `core` importar um módulo. É privilégio de kernel: um
+    app de negócio consome `CurrentUserDep`/`CurrentOrganizationDep`/`require_permission(...)`
+    e pronto.
 
-    O `access` chega a três linhas porque é dono dos três eixos que o kernel expõe além da
-    identidade. É teto, não escada: a spec 05 registra o `require_module` do mesmo jeito, e um
-    app de negócio segue com a sua linha única."""
+    O `access` chega a **quatro** linhas porque é dono dos quatro eixos que o kernel expõe além
+    da identidade — a spec 04 previu três e apostou que era teto; o entitlement da 05 mostrou
+    que faltava um. Agora é teto de verdade: os eixos são os do kernel, e um app de negócio
+    segue com a sua linha única (`refeicoes` e `frota`, abaixo, já são só isso)."""
 
     @api.get("/health")
     async def health() -> dict[str, str]:
@@ -32,6 +39,10 @@ def mount_routes(api: APIRouter) -> None:
     set_user_reader_factory(SqlAlchemyUserReader)
     set_organization_reader_factory(SqlAlchemyOrganizationReader)
     set_permission_reader_factory(SqlAlchemyMembershipReader)
+    set_module_entitlement_reader_factory(SqlAlchemyModuleEntitlementReader)
 
     api.include_router(auth_router)
     api.include_router(access_router)
+
+    mount_module(api, REFEICOES)
+    mount_module(api, FROTA)

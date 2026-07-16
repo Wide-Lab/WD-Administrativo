@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from src.core.authz import Permission
 from src.core.exceptions import ForbiddenError
+from src.core.modules import ModuleKey
 from src.core.security import UserId
 from src.core.tenancy import CurrentOrganization
 from src.modules.access.application.ports.unit_of_work import AccessUnitOfWorkProtocol
@@ -18,6 +19,13 @@ class MyMembership:
     persona: Persona
     permissions: frozenset[Permission]
 
+    modules: tuple[ModuleKey, ...]
+    """Os módulos habilitados **da organização**, não do usuário: entitlement é do tenant, e
+    quem separa duas pessoas da mesma Empresa é `persona` e `permissions`.
+
+    É daqui que a casca monta a navegação — e esconder o menu é só a metade educada da
+    negação: o backend nega igual, com `require_module`, pra quem chamar a rota direto."""
+
 
 class GetMyMembershipUseCase:
     def __init__(self, uow: AccessUnitOfWorkProtocol) -> None:
@@ -33,7 +41,11 @@ class GetMyMembershipUseCase:
 
     async def execute(self, user_id: UserId, organization: CurrentOrganization) -> MyMembership:
         """
-        Resolve papel, persona e permissões de uma pessoa numa organização.
+        Resolve papel, persona, permissões e módulos de uma pessoa numa organização.
+
+        Papel, persona e permissões são de quem pergunta; `modules` é da organização — a mesma
+        Empresa devolve a mesma lista pro admin e pro colaborador. São eixos diferentes, e é a
+        casca que os cruza: o que aparece no menu é módulo do tenant **e** permissão da pessoa.
 
         Não há "organização ativa" no servidor nem default a adivinhar: qual organização é
         sempre o `orgId` do path, e é isso que faz o mesmo login devolver personas diferentes
@@ -51,7 +63,7 @@ class GetMyMembershipUseCase:
 
         Returns:
             MyMembership:
-                Papel, persona e permissões nesta organização.
+                Papel, persona, permissões e módulos habilitados nesta organização.
 
         Raises:
             ForbiddenError:
@@ -61,6 +73,9 @@ class GetMyMembershipUseCase:
         """
 
         async with self._uow as uow:
+            entitlements = await uow.module_entitlements.list_for_organization(organization.id)
+            modules = tuple(entitlement.module_key for entitlement in entitlements)
+
             membership = await uow.memberships.get_active_for_user_and_organization(
                 user_id=user_id,
                 organization_id=organization.id,
@@ -70,6 +85,7 @@ class GetMyMembershipUseCase:
                     role=membership.role,
                     persona=persona_for(organization.type, membership.role),
                     permissions=permissions_for(membership.role),
+                    modules=modules,
                 )
 
             if await uow.memberships.is_platform_admin(user_id):
@@ -77,6 +93,7 @@ class GetMyMembershipUseCase:
                     role=Role.PLATFORM_ADMIN,
                     persona=Persona.PLATFORM,
                     permissions=permissions_for(Role.PLATFORM_ADMIN),
+                    modules=modules,
                 )
 
             raise ForbiddenError("Você não tem vínculo com esta organização.")

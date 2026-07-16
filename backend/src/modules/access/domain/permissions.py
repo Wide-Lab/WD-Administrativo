@@ -41,6 +41,16 @@ class PlatformPermissions:
     """Conveniar um Parceiro, suspender ou reativar o convênio. Só faz sentido numa Empresa —
     o `CreateAgreementUseCase` recusa os outros tipos."""
 
+    MODULES_READ: Permission = "modules.read"
+    """Ver o que a Empresa ativa contratou, junto do catálogo do que dá pra contratar."""
+
+    MODULES_WRITE: Permission = "modules.write"
+    """Habilitar ou desabilitar um módulo na Empresa ativa — vender, na prática.
+
+    Só a Plataforma a tem, e é o simétrico do `agreements.write`: lá, a Widelab não assina
+    contrato no lugar do cliente; aqui, o cliente não se vende módulo sozinho. Um
+    `company_admin` que pudesse ligar `refeicoes` tornaria o entitlement decorativo."""
+
 
 PLATFORM_PERMISSIONS = PlatformPermissions
 
@@ -71,6 +81,8 @@ PERMISSIONS_BY_ROLE: Mapping[Role, frozenset[Permission]] = {
             PlatformPermissions.ORGANIZATIONS_WRITE,
             PlatformPermissions.MEMBERS_READ,
             PlatformPermissions.MEMBERS_WRITE,
+            PlatformPermissions.MODULES_READ,
+            PlatformPermissions.MODULES_WRITE,
         }
     ),
     Role.COMPANY_ADMIN: frozenset(

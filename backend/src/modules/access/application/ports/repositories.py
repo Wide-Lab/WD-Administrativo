@@ -1,6 +1,7 @@
 import uuid
 from typing import Protocol
 
+from src.core.modules import ModuleKey
 from src.core.pagination.params import Page, PageParams
 from src.modules.access.application.dtos.filters import (
     MembershipFilters,
@@ -10,7 +11,9 @@ from src.modules.access.application.dtos.filters import (
 from src.modules.access.domain.entities import (
     Membership,
     MembershipWithOrganization,
+    ModuleEntitlement,
     NewMembership,
+    NewModuleEntitlement,
     NewOrganization,
     NewPartnerAgreement,
     Organization,
@@ -59,6 +62,27 @@ class PartnerAgreementRepositoryProtocol(Protocol):
         page_params: PageParams,
         filters: PartnerAgreementFilters | None = None,
     ) -> Page[PartnerAgreement]: ...
+
+
+class ModuleEntitlementRepositoryProtocol(Protocol):
+    """Contrato do repositório de entitlements consumido pelos use cases de `access`.
+
+    Sem `update`: ligar é criar, desligar é apagar — não existe campo pra editar."""
+
+    async def get_by_organization_and_module(
+        self,
+        organization_id: uuid.UUID,
+        module_key: ModuleKey,
+    ) -> ModuleEntitlement | None: ...
+
+    async def list_for_organization(
+        self,
+        organization_id: uuid.UUID,
+    ) -> list[ModuleEntitlement]: ...
+
+    async def create(self, create_command: NewModuleEntitlement) -> ModuleEntitlement: ...
+
+    async def delete(self, organization_id: uuid.UUID, module_key: ModuleKey) -> bool: ...
 
 
 class MembershipRepositoryProtocol(Protocol):

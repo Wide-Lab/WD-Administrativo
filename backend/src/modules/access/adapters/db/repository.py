@@ -5,9 +5,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ConflictError, NotFoundError
+from src.core.modules import ModuleKey
 from src.core.pagination.params import Page, PageParams
 from src.core.tenancy import OrganizationType
 from src.modules.access.adapters.db.models import Membership as MembershipModel
+from src.modules.access.adapters.db.models import ModuleEntitlement as ModuleEntitlementModel
 from src.modules.access.adapters.db.models import Organization as OrganizationModel
 from src.modules.access.adapters.db.models import PartnerAgreement as PartnerAgreementModel
 from src.modules.access.application.dtos.filters import (
@@ -19,7 +21,9 @@ from src.modules.access.domain.entities import (
     Membership,
     MembershipStatus,
     MembershipWithOrganization,
+    ModuleEntitlement,
     NewMembership,
+    NewModuleEntitlement,
     NewOrganization,
     NewPartnerAgreement,
     Organization,
@@ -209,6 +213,91 @@ class PartnerAgreementRepository:
             partner_id=row.partner_id,
             status=row.status,
             created_at=row.created_at,
+        )
+
+
+class ModuleEntitlementRepository:
+    """Repositório de entitlements de módulo — o que cada Empresa contratou.
+
+    Não é tenant-scoped pelo helper do `core` pelo mesmo motivo que `organizations` não é: o
+    entitlement é dado **sobre** um tenant, não dado *dentro* de um. Quem escopa é o filtro
+    explícito por `organization_id` de cada método — não há leitura que não o receba."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_organization_and_module(
+        self,
+        organization_id: uuid.UUID,
+        module_key: ModuleKey,
+    ) -> ModuleEntitlement | None:
+        """O entitlement de um módulo numa organização; `None` se o módulo não está habilitado
+        — presença da linha é o "sim"."""
+
+        row = await self._get_model_by(
+            sa.and_(
+                ModuleEntitlementModel.organization_id == organization_id,
+                ModuleEntitlementModel.module_key == module_key,
+            )
+        )
+        return self._to_entity(row) if row else None
+
+    async def list_for_organization(self, organization_id: uuid.UUID) -> list[ModuleEntitlement]:
+        """Os módulos habilitados de uma organização, ordenados por chave."""
+
+        result = await self._session.execute(
+            sa.select(ModuleEntitlementModel)
+            .where(ModuleEntitlementModel.organization_id == organization_id)
+            .order_by(ModuleEntitlementModel.module_key)
+        )
+        return [self._to_entity(row) for row in result.scalars().all()]
+
+    async def create(self, create_command: NewModuleEntitlement) -> ModuleEntitlement:
+        """Habilita um módulo. Como no convênio (spec 03), a violação de constraint vira
+        `ConflictError` já no `flush` — é dali que sai o `INSERT`, e sem esta tradução um
+        entitlement duplicado viraria 500.
+
+        Quem chama é o `EnableModuleUseCase`, que só chega aqui se a linha não existir: o `PUT`
+        é idempotente. O conflito que sobra é a corrida entre dois `PUT` simultâneos."""
+
+        model = ModuleEntitlementModel(**create_command.to_dict())
+        self._session.add(model)
+
+        try:
+            await self._session.flush()
+        except IntegrityError as exc:
+            raise ConflictError("Este módulo já está habilitado nesta organização.") from exc
+
+        return self._to_entity(model)
+
+    async def delete(self, organization_id: uuid.UUID, module_key: ModuleKey) -> bool:
+        """Desabilita um módulo apagando a linha — não há coluna pra desligar.
+
+        Devolve se havia o que apagar, pra o use case não precisar de um `SELECT` antes só pra
+        saber."""
+
+        result = await self._session.execute(
+            sa.delete(ModuleEntitlementModel).where(
+                ModuleEntitlementModel.organization_id == organization_id,
+                ModuleEntitlementModel.module_key == module_key,
+            )
+        )
+        return result.rowcount > 0
+
+    async def _get_model_by(
+        self,
+        condition: sa.ColumnElement[bool],
+    ) -> ModuleEntitlementModel | None:
+        result = await self._session.execute(sa.select(ModuleEntitlementModel).where(condition))
+        return result.scalars().one_or_none()
+
+    def _to_entity(self, row: ModuleEntitlementModel) -> ModuleEntitlement:
+        return ModuleEntitlement(
+            id=row.id,
+            organization_id=row.organization_id,
+            module_key=row.module_key,
+            granted_at=row.granted_at,
+            granted_by=row.granted_by,
         )
 
 

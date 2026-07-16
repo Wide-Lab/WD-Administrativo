@@ -3,6 +3,7 @@ from typing import Protocol, Self
 
 from src.modules.access.application.ports.repositories import (
     MembershipRepositoryProtocol,
+    ModuleEntitlementRepositoryProtocol,
     OrganizationRepositoryProtocol,
     PartnerAgreementRepositoryProtocol,
 )
@@ -17,6 +18,9 @@ class AccessUnitOfWorkProtocol(Protocol):
 
     @property
     def memberships(self) -> MembershipRepositoryProtocol: ...
+
+    @property
+    def module_entitlements(self) -> ModuleEntitlementRepositoryProtocol: ...
 
     async def __aenter__(self) -> Self: ...
 

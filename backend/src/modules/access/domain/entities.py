@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from src.core.modules import ModuleKey
 from src.core.tenancy import OrganizationType
 from src.core.types import UNSET, BaseCreateCommand, BaseUpdateCommand, UnsetType
 
@@ -11,7 +12,9 @@ __all__ = [
     "Membership",
     "MembershipStatus",
     "MembershipWithOrganization",
+    "ModuleEntitlement",
     "NewMembership",
+    "NewModuleEntitlement",
     "NewOrganization",
     "NewPartnerAgreement",
     "Organization",
@@ -185,3 +188,35 @@ class UpdateMembership(BaseUpdateCommand):
 
     role: Role | UnsetType = UNSET
     status: MembershipStatus | UnsetType = UNSET
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleEntitlement:
+    """ "Esta Empresa contratou este módulo" — a linha que faz a plataforma vender sem deploy.
+
+    **Não tem coluna de habilitado/desabilitado, e isso é a decisão, não uma economia.** A
+    presença da linha é o "sim" e a ausência é o "não", então o padrão de um tenant recém-criado
+    é *tudo negado* sem ninguém precisar escrever nada. Um booleano teria dois jeitos de dizer
+    "não" (linha ausente e linha `false`), e alguém acabaria lendo um deles errado. Desligar é
+    apagar; se um dia o histórico importar, o caminho é expirar — fora de escopo agora.
+
+    Não há `UpdateModuleEntitlement`: ligar é criar, desligar é apagar. Não existe campo pra
+    editar."""
+
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    module_key: ModuleKey
+    granted_at: datetime
+    granted_by: uuid.UUID
+    """Quem (`platform_admin`) liberou. Entitlement é ato comercial e tem responsável."""
+
+
+@dataclass(frozen=True, slots=True)
+class NewModuleEntitlement(BaseCreateCommand):
+    """Note a ausência de `organization_type`: diferente do vínculo (`NewMembership`), aqui o
+    tipo não é escolha nem leitura — é uma constante gerada pelo banco, porque só Empresa
+    contrata módulo. Ver o model."""
+
+    organization_id: uuid.UUID
+    module_key: ModuleKey
+    granted_by: uuid.UUID

@@ -4,14 +4,17 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from src.core.modules import ModuleDescriptor, ModuleNav
 from src.core.pagination.params import Page
 from src.core.tenancy import OrganizationType
 from src.modules.access.application.use_cases.get_my_membership import MyMembership
+from src.modules.access.application.use_cases.list_modules import OrganizationModules
 from src.modules.access.domain.entities import (
     AgreementStatus,
     Membership,
     MembershipStatus,
     MembershipWithOrganization,
+    ModuleEntitlement,
     Organization,
     OrganizationStatus,
     PartnerAgreement,
@@ -125,14 +128,16 @@ class MyContextResponse(BaseModel):
 class MyMembershipResponse(BaseModel):
     """`GET /api/organizacoes/{orgId}/eu` — minha situação **nesta** organização.
 
-    Sem `modules`: a spec 04 desenha o payload com ele, mas o próprio texto diz que "`modules`
-    entra no payload por org na spec 05". Devolver `[]` agora seria afirmar que o tenant não
-    tem módulo nenhum, quando a verdade é que entitlement ainda não existe — e o frontend não
-    teria como distinguir as duas coisas."""
+    `modules` entrou aqui na spec 05, como a 04 previu. Um `[]` agora significa o que diz — a
+    Empresa não contratou nada —, e não mais "entitlement não existe"."""
 
     role: Role
     persona: Persona
     permissions: list[str]
+
+    modules: list[str]
+    """As chaves dos módulos habilitados **da organização**. A casca cruza com `permissions`
+    pra montar a navegação; o backend nega igual sem ela."""
 
     @classmethod
     def from_result(cls, result: MyMembership) -> MyMembershipResponse:
@@ -140,6 +145,74 @@ class MyMembershipResponse(BaseModel):
             role=result.role,
             persona=result.persona,
             permissions=sorted(result.permissions),
+            modules=sorted(result.modules),
+        )
+
+
+class ModuleNavResponse(BaseModel):
+    """Os metadados de navegação que o módulo declara no descritor."""
+
+    label: str
+    path: str
+    icon: str | None
+
+    @classmethod
+    def from_descriptor(cls, nav: ModuleNav) -> ModuleNavResponse:
+        return cls(label=nav.label, path=nav.path, icon=nav.icon)
+
+
+class CatalogModuleResponse(BaseModel):
+    """Um módulo do catálogo: o que a **plataforma** sabe oferecer, ligado ou não.
+
+    Sem `permissions`: o catálogo diz o que dá pra vender, e as capabilities de dentro do
+    módulo são pergunta do `/eu` de cada pessoa, não desta lista."""
+
+    key: str
+    name: str
+    personas: list[str]
+    nav: ModuleNavResponse
+
+    @classmethod
+    def from_descriptor(cls, descriptor: ModuleDescriptor) -> CatalogModuleResponse:
+        return cls(
+            key=descriptor.key,
+            name=descriptor.name,
+            personas=list(descriptor.personas),
+            nav=ModuleNavResponse.from_descriptor(descriptor.nav),
+        )
+
+
+class EnabledModuleResponse(BaseModel):
+    """Um módulo habilitado: um fato sobre **este tenant** — quem ligou e quando."""
+
+    key: str
+    granted_at: datetime
+    granted_by: uuid.UUID
+
+    @classmethod
+    def from_entity(cls, entity: ModuleEntitlement) -> EnabledModuleResponse:
+        return cls(
+            key=entity.module_key,
+            granted_at=entity.granted_at,
+            granted_by=entity.granted_by,
+        )
+
+
+class OrganizationModulesResponse(BaseModel):
+    """`GET /api/organizacoes/{orgId}/modulos` — o que esta Empresa contratou e o que existe
+    pra contratar.
+
+    As duas listas não se repetem: cruzar por `key` é do frontend. `catalog` é igual pra toda
+    organização; `enabled` é o que muda de tenant pra tenant."""
+
+    enabled: list[EnabledModuleResponse]
+    catalog: list[CatalogModuleResponse]
+
+    @classmethod
+    def from_result(cls, result: OrganizationModules) -> OrganizationModulesResponse:
+        return cls(
+            enabled=[EnabledModuleResponse.from_entity(item) for item in result.enabled],
+            catalog=[CatalogModuleResponse.from_descriptor(item) for item in result.catalog],
         )
 
 

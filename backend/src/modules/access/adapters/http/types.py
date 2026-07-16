@@ -49,3 +49,19 @@ MemberWriterDep = Annotated[
     CurrentOrganization,
     Depends(require_permission(PLATFORM_PERMISSIONS.MEMBERS_WRITE)),
 ]
+
+ModuleReaderDep = Annotated[
+    CurrentOrganization,
+    Depends(require_permission(PLATFORM_PERMISSIONS.MODULES_READ)),
+]
+
+ModuleWriterDep = Annotated[
+    CurrentOrganization,
+    Depends(require_permission(PLATFORM_PERMISSIONS.MODULES_WRITE)),
+]
+"""O "só `platform_admin` altera entitlement" da spec, sem `if` de papel na rota.
+
+Nenhum papel além de `platform_admin` tem `modules.write`, e o `SqlAlchemyMembershipReader`
+soma as permissões de plataforma em **qualquer** organização do path — é o mesmo mecanismo que
+já deixa a Widelab consertar o vínculo de uma Empresa onde ela não tem vínculo. Um
+`company_admin` na própria Empresa leva 403 aqui."""

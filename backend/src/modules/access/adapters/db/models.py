@@ -160,6 +160,69 @@ class PartnerAgreement(Base):
     )
 
 
+class ModuleEntitlement(Base):
+    """ "Esta Empresa contratou este módulo."
+
+    **`granted_by` não declara `ForeignKey` aqui pelo mesmo motivo que `Membership.user_id` não
+    declara**: a FK pra `users` existe na migration `0004`, mas declará-la no model obrigaria
+    este arquivo a importar os models do `auth`. Ver o docstring de `Membership`.
+
+    `module_key` não tem FK nenhuma, e não é esquecimento: o registro de módulos é **código**
+    (`ModuleRegistry`), não tabela. Uma tabela `modules` espelhando o registry teria que ser
+    semeada por migration a cada módulo novo — exatamente o "sem deploy" que a spec quer evitar,
+    e uma segunda fonte da verdade pra divergir da primeira. Aqui a aplicação recusa a chave
+    desconhecida (422); o banco só guarda o texto."""
+
+    __tablename__ = "module_entitlements"
+
+    __table_args__ = (
+        # Presença da linha = habilitado. O único por par é o que faz o `PUT` ser idempotente:
+        # ligar duas vezes não cria duas linhas.
+        UniqueConstraint(
+            "organization_id",
+            "module_key",
+            name="uq_module_entitlements_organization_module",
+        ),
+        # Só Empresa contrata módulo — e quem garante é o banco, não um `if`. Mesmo truque do
+        # convênio (spec 03): a FK composta contra `organizations(id, type)` com o tipo fixado
+        # numa coluna gerada torna impossível dar entitlement a um Parceiro ou à plataforma, e
+        # bloqueia trocar o `type` de uma Empresa que tem módulo ligado.
+        ForeignKeyConstraint(
+            ["organization_id", "organization_type"],
+            ["organizations.id", "organizations.type"],
+            name="fk_module_entitlements_organization",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
+
+    organization_type: Mapped[OrganizationType] = mapped_column(
+        _pg_enum(OrganizationType, "organization_type"),
+        Computed(f"'{OrganizationType.COMPANY.value}'::organization_type", persisted=True),
+    )
+    """Constante gerada pelo banco — existe só pra ser o segundo lado da FK composta. Ninguém
+    escreve nela."""
+
+    module_key: Mapped[str] = mapped_column(Text)
+    """Uma chave do `ModuleRegistry` (`refeicoes`, `frota`)."""
+
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    granted_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    """Aponta pra `users.id`, tabela do `auth`. A FK vive na migration — ver o docstring da
+    classe."""
+
+
 class Membership(Base):
     """O vínculo usuário↔organização↔papel.
 
