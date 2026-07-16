@@ -20,38 +20,48 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 |---|---|---|---|---|
 | 01 | fundação (FastAPI hexagonal) | ✅ | fundação (Next App Router) | ✅ |
 | 02 | identidade e sessão (`auth`) | ✅ | design system | ✅ |
-| 03 | organizações e tenancy (`access`) | ✅¹ | login e sessão | ✅ |
-| 04 | membros e autorização (`access`) | ⬜ | casca e personas | ⬜ |
+| 03 | organizações e tenancy (`access`) | ✅ | login e sessão | ✅ |
+| 04 | membros e autorização (`access`) | ✅ | casca e personas | ⬜¹ |
 | 05 | módulos e entitlements (`access`) | ⬜ | seleção de organização | ⬜ |
 | 06 | convites e onboarding (`access`) | ⬜ | onboarding | ⬜ |
 
-¹ backend `03` subiu com o **guard de vínculo permissivo**: `current_organization` existe e
-nega de verdade, mas o `OrganizationReader` aceita qualquer organização ativa pra qualquer
-usuário autenticado — vínculo é `memberships`, da `04`. O critério 2 da spec só fecha lá.
+¹ frontend `04` está **destravado** (backend `03`+`04` entregues), mas a navegação derivada de
+módulos só fecha com backend `05` — hoje `GET /api/organizacoes/{orgId}/eu` devolve papel,
+persona e permissões, e **não** `modules`.
 
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
 `Fora de escopo` / `Critérios de aceite`).
 
-## Estado atual — kernel `auth` completo; `access` com organizações e tenancy
+## Estado atual — kernel completo no eixo de autorização; falta entitlement
 
-Backend `01`–`03` e frontend `01`–`03` estão implementados: dá pra subir a stack, logar,
-provisionar Empresas/Parceiros e conveniá-los. **A próxima entrega é
-`backend/04-membros-e-autorizacao.md`** (`Membership`, papéis, guard) — ela fecha o guard
-permissivo da `03` e, junto com ela, destrava frontend `04`.
+Backend `01`–`04` e frontend `01`–`03` estão implementados: dá pra subir a stack, logar,
+provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel — e **o backend nega
+de verdade** (403 em tenant sem vínculo, 403 em permissão faltante). **A próxima entrega é
+`backend/05-modulos-e-entitlements.md`** (`require_module`, flag por tenant); frontend `04`
+está destravado e pode andar em paralelo.
 
 O que existe hoje:
 
-- `backend/` — `src/core` (config, database, security, **tenancy**, exceptions, logging,
-  pagination, types) + `src/modules/auth/` completo: login, logout, `GET /api/me`,
+- `backend/` — `src/core` (config, database, security, **tenancy**, **authz**, exceptions,
+  logging, pagination, types) + `src/modules/auth/` completo: login, logout, `GET /api/me`,
   `PUT /api/me/password`, CLI de bootstrap, migration `0001_users`.
-- `src/modules/access/` — `organizations` (platform/company/partner) e `partner_agreements`
-  (convênio), `POST`/`GET /api/organizacoes`, `GET /api/organizacoes/{orgId}`, e
-  `/convenios` (criar, listar, suspender/reativar). Migration `0002_organizations`, que
-  **semeia a organização `platform`** (`01890000-0000-7000-8000-000000000001`).
-- **`memberships`, papéis e permissões não existem** — é a `04`. Por isso os guards
-  `require_platform_admin`/`require_company_admin` (em `access/adapters/http/dependencies.py`)
-  hoje só exigem sessão, e cada um carrega o `TODO(spec 04)` do que falta.
+- `src/modules/access/` — `organizations` (platform/company/partner), `partner_agreements`
+  (convênio) e `memberships` (usuário↔org↔papel). Rotas: `POST`/`GET /api/organizacoes`,
+  `GET /api/organizacoes/{orgId}`, `/convenios` (criar, listar, suspender/reativar),
+  `GET /api/me/contexto`, `GET /api/organizacoes/{orgId}/eu`, `GET`/`PATCH
+  /api/organizacoes/{orgId}/membros`. Migrations `0002_organizations` — que **semeia a
+  organização `platform`** (`01890000-0000-7000-8000-000000000001`) — e `0003_memberships`.
+- **Papéis e permissões são fixos e declarados em código**, em `access/domain/permissions.py`
+  (`ROLES_BY_ORGANIZATION_TYPE`, `PERMISSIONS_BY_ROLE`, `persona_for`). Papel só vale no tipo
+  de organização certo, e **quem garante é o banco**: `memberships` tem um `organization_type`
+  ancorado por FK composta contra `organizations(id, type)` + um `CHECK` **gerado** do mapa do
+  domínio. Mexeu no mapa, mexe na migration.
+- **Entitlement de módulo não existe** — é a `05`. Por isso `require_module` não existe e o
+  `/eu` ainda não devolve `modules`.
+- **Bootstrap de vínculo é CLI**, não rota (criar membro é convite, spec 06):
+  `python -m src.modules.access.cli grant --email … --role … [--org …]`; sem `--org`, o alvo é
+  a organização `platform`.
 - `frontend/` — scaffold Next, design system (tokens em `src/styles.css`, primitivos shadcn,
   vitrine em `/design-system`), feature `auth` (`/entrar`, `use-session`, guarda de rota) e
   uma `/` autenticada **placeholder** — a home de verdade é decidida por frontend `04`.
@@ -91,12 +101,19 @@ O que existe hoje:
   `mount_routes`, sem tocar `core`.
 - **`core` nunca importa módulo — a seta aponta pra dentro.** Quando o `core` precisa de algo
   que um módulo é dono (ex.: `current_user` precisa ler `users`, tabela do `auth`), o `core`
-  declara uma **porta** e o módulo **registra a implementação** em `mount_routes`. São dois
-  casos, os dois de kernel: `UserReader` (`core/security/identity.py`) ↔
-  `set_user_reader_factory(SqlAlchemyUserReader)`, e `OrganizationReader`
-  (`core/tenancy/context.py`) ↔ `set_organization_reader_factory(SqlAlchemyOrganizationReader)`.
-  Ganhar uma segunda linha no `mount_routes` é **privilégio de kernel** — app de negócio
-  consome `CurrentUserDep`/`CurrentOrganizationDep` e pronto, sem tocar `core`.
+  declara uma **porta** e o módulo **registra a implementação** em `mount_routes`. São três
+  casos, todos de kernel: `UserReader` (`core/security/identity.py`) ↔
+  `set_user_reader_factory(SqlAlchemyUserReader)`; `OrganizationReader`
+  (`core/tenancy/context.py`) ↔ `set_organization_reader_factory(SqlAlchemyOrganizationReader)`;
+  e `PermissionReader` (`core/authz/context.py`) ↔
+  `set_permission_reader_factory(SqlAlchemyMembershipReader)`.
+  Ganhar linha extra no `mount_routes` é **privilégio de kernel** — app de negócio consome
+  `CurrentUserDep`/`CurrentOrganizationDep`/`require_permission(...)` e pronto, sem tocar `core`.
+- **Autorização entra por capability, não por papel.** Rota e guard nomeiam a permissão
+  (`require_permission("agreements.write")`); quem decide qual papel a tem é
+  `PERMISSIONS_BY_ROLE`, no `access`. O `core` não conhece papel nenhum, e `Permission` é `str`
+  de propósito: o kernel declara as permissões da plataforma, cada módulo de negócio declarará
+  as suas (spec 05). Papel/tenant **nunca** entram no token de sessão — mudam a cada request.
 - **Schema só via Alembic**, sem `create_all`. Nomes de tabela `snake_case` no plural, **sem**
   prefixo `T0xx`. E-mail é `CITEXT`; senha é **Argon2id**, nunca bcrypt.
 - **Rotas em português; tenant no path.** `/api/me*` é o usuário global; `/api/organizacoes/{orgId}/eu`
@@ -126,6 +143,7 @@ eles valem. `docker compose up db` sobe só o Postgres (backend/frontend rodam n
 | `ruff format .` / `ruff check .` / `mypy src` | formata / lint / typecheck |
 | `alembic revision --autogenerate -m "msg"` / `alembic upgrade head` | migration |
 | `python -m src.modules.auth.cli create-user --email … --name …` | cria usuário (bootstrap) |
+| `python -m src.modules.access.cli grant --email … --role … [--org …]` | vincula usuário a organização (bootstrap; sem `--org`, a `platform`) |
 
 | Frontend (de `frontend/`, via `npm`) | |
 |---|---|

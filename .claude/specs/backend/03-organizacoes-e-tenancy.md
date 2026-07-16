@@ -1,7 +1,8 @@
 # 03 — Organizações e tenancy
 
-**Estado:** ✅ implementada (2026-07-16), **com o guard de vínculo ainda permissivo** — o
-critério 2 só fecha com a spec 04. Ver `Como ficou` no fim.
+**Estado:** ✅ implementada (2026-07-16). Subiu com o guard de vínculo permissivo; **o critério
+2 fechou com a `backend/04`** (2026-07-16), que trocou o corpo do `SqlAlchemyOrganizationReader`
+como previsto. Ver `Como ficou` no fim.
 **Depende de:** `backend/01-fundacao.md`, `backend/02-identidade-e-sessao.md`.
 **Entrega:** o módulo `access` começa aqui — `organizations` (plataforma/empresa/parceiro),
 o convênio Empresa↔Parceiro, e o **contexto de tenant** que escopa todo dado do sistema por
@@ -125,8 +126,15 @@ permissivo e apertar quando a 04 entrar.)
 ## Como ficou
 
 Os critérios 1, 3, 4 e 5 batem e foram observados rodando contra o Postgres de verdade. O
-**critério 2 fica em aberto por dependência**, e o 6 é vacuamente verdadeiro hoje — detalhe
-abaixo.
+**critério 2 ficou em aberto por dependência e fechou na spec 04**, e o 6 é vacuamente
+verdadeiro hoje — detalhe abaixo.
+
+> **Fechado na `backend/04` (2026-07-16).** O `SqlAlchemyOrganizationReader` agora confere
+> `memberships` e afrouxa pra `platform_admin`, como este texto previa. Custou o que a spec
+> dizia que custaria: o corpo de um método, mais uma consulta — nenhuma rota, use case ou linha
+> do `core` mudou junto. Verificado rodando: um usuário vinculado só a um Parceiro leva **403**
+> na Empresa alheia (e vice-versa), e o `platform_admin` alcança qualquer `orgId`. O parágrafo
+> abaixo fica como o registro da decisão de subir permissivo — não some.
 
 - **O critério 2 não fecha nesta spec, e isso é estrutural, não esquecimento.** O critério
   cobra 403 pra organização "em que o usuário não tem vínculo", mas vínculo é `memberships`,
