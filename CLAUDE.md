@@ -23,7 +23,7 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 03 | organizações e tenancy (`access`) | ✅ | login e sessão | ✅ |
 | 04 | membros e autorização (`access`) | ✅ | casca e personas | ✅ |
 | 05 | módulos e entitlements (`access`) | ✅ | seleção de organização | ⬜¹ |
-| 06 | convites e onboarding (`access`) | ⬜ | onboarding | ⬜ |
+| 06 | convites e onboarding (`access`) | ✅ | onboarding | ⬜ |
 
 ¹ **a próxima entrega.** Com a `frontend/04` fechada, quem tem mais de um vínculo cai sempre no
 primeiro (`homePathFor`) — trocar de organização ainda é editar a URL.
@@ -32,29 +32,42 @@ primeiro (`homePathFor`) — trocar de organização ainda é editar a URL.
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
 `Fora de escopo` / `Critérios de aceite`).
 
-## Estado atual — kernel completo; o superapp já mostra a cara certa
+## Estado atual — backend da fase 1 fechado; o superapp já mostra a cara certa
 
-Backend `01`–`05` e frontend `01`–`04` estão implementados: dá pra subir a stack, logar,
+Backend `01`–`06` e frontend `01`–`04` estão implementados: dá pra subir a stack, logar,
 provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel, **vender módulo
 ligando um flag** — e **o backend nega de verdade** (403 em tenant sem vínculo, 403 em permissão
 faltante, 403 em módulo não contratado). Com a `frontend/04`, logar já cai na casca da sua
-persona, com a navegação saindo dos módulos que o **tenant** contratou. **A próxima entrega é
-`frontend/05-selecao-de-organizacao.md`**; no backend, o que resta antes da fase 2 é a `06`
-(convites), e criar vínculo segue sendo CLI até lá.
+persona, com a navegação saindo dos módulos que o **tenant** contratou. Com a `backend/06`,
+**entrar no sistema deixou de ser CLI**: Colaborador é convidado e aceita por token; Parceiro se
+auto-cadastra. **A próxima entrega é `frontend/05-selecao-de-organizacao.md`**; no backend, o que
+resta antes da fase 2 é a dívida de teste automatizado.
 
 O que existe hoje:
 
 - `backend/` — `src/core` (config, database, security, **tenancy**, **authz**, **modules**,
-  exceptions, logging, pagination, types) + `src/modules/auth/` completo: login, logout,
-  `GET /api/me`, `PUT /api/me/password`, CLI de bootstrap, migration `0001_users`.
+  **notifications**, exceptions, logging, pagination, types) + `src/modules/auth/` completo:
+  login, logout, `GET /api/me`, `PUT /api/me/password`, CLI de bootstrap, migration
+  `0001_users`.
 - `src/modules/access/` — `organizations` (platform/company/partner), `partner_agreements`
-  (convênio), `memberships` (usuário↔org↔papel) e `module_entitlements` (Empresa↔módulo).
-  Rotas: `POST`/`GET /api/organizacoes`, `GET /api/organizacoes/{orgId}`, `/convenios` (criar,
-  listar, suspender/reativar), `GET /api/me/contexto`, `GET /api/organizacoes/{orgId}/eu`,
+  (convênio), `memberships` (usuário↔org↔papel), `module_entitlements` (Empresa↔módulo) e
+  `invitations` (convite↔papel). Rotas: `POST`/`GET /api/organizacoes`,
+  `GET /api/organizacoes/{orgId}`, `/convenios` (criar, listar, suspender/reativar),
+  `GET /api/me/contexto`, `GET /api/organizacoes/{orgId}/eu`,
   `GET`/`PATCH /api/organizacoes/{orgId}/membros`, `GET`/`PUT`/`DELETE
-  /api/organizacoes/{orgId}/modulos[/{chave}]`. Migrations `0002_organizations` — que **semeia
-  a organização `platform`** (`01890000-0000-7000-8000-000000000001`) —, `0003_memberships` e
-  `0004_module_entitlements`.
+  /api/organizacoes/{orgId}/modulos[/{chave}]`, `POST /api/organizacoes/{orgId}/convites`, e as
+  **públicas** `GET /api/convites/{token}`, `POST /api/convites/{token}/aceitar` e
+  `POST /api/parceiros/cadastro`. Migrations `0002_organizations` — que **semeia a organização
+  `platform`** (`01890000-0000-7000-8000-000000000001`) —, `0003_memberships`,
+  `0004_module_entitlements` e `0005_invitations`.
+- **Entrar no sistema são dois caminhos, deliberadamente diferentes** (`backend/06`): o
+  Colaborador/staff é **convidado** (`invitations.write` = `company_admin`/`hr`) e aceita por um
+  token opaco de **uso único** — que cria o login se não houver, cria o vínculo e emite sessão;
+  o Parceiro **se auto-cadastra** (`POST /api/parceiros/cadastro`, público) e a organização, o
+  primeiro `partner_admin` e o vínculo nascem **numa transação só**. Convite expirado/revogado/
+  já aceito responde **410**; a expiração é derivada de `expires_at`, e `status = 'expired'`
+  nunca é gravado. **Não há rota de revogar nem de listar convite**, e **Parceiro não convida** —
+  os dois são buracos conhecidos, ver `Como ficou` da `backend/06`.
 - **Papéis e permissões são fixos e declarados em código**, em `access/domain/permissions.py`
   (`ROLES_BY_ORGANIZATION_TYPE`, `PERMISSIONS_BY_ROLE`, `persona_for`). Papel só vale no tipo
   de organização certo, e **quem garante é o banco**: `memberships` tem um `organization_type`
@@ -76,7 +89,9 @@ O que existe hoje:
   em nada** — não existe mecanismo que ligue capability de módulo a papel (`PERMISSIONS_BY_ROLE`
   é do `access`, e módulo não importa módulo). O primeiro app de negócio esbarra nisso no
   primeiro endpoint; ganha spec própria. Ver `Como ficou` da `backend/05`.
-- **Bootstrap de vínculo é CLI**, não rota (criar membro é convite, spec 06):
+- **Criar membro é convite** (`POST /api/organizacoes/{orgId}/convites` + aceite), não `POST`
+  direto. A **CLI de vínculo continua**, agora só pro que o convite não alcança — o bootstrap do
+  primeiro `platform_admin`, que não tem quem o convide, e o segundo membro de um Parceiro:
   `python -m src.modules.access.cli grant --email … --role … [--org …]`; sem `--org`, o alvo é
   a organização `platform`.
 - `frontend/` — scaffold Next, design system (tokens em `src/styles.css`, primitivos shadcn,
@@ -130,9 +145,10 @@ O que existe hoje:
   `mount_routes`, sem tocar `core`.
 - **`core` nunca importa módulo — a seta aponta pra dentro.** Quando o `core` precisa de algo
   que um módulo é dono (ex.: `current_user` precisa ler `users`, tabela do `auth`), o `core`
-  declara uma **porta** e o módulo **registra a implementação** em `mount_routes`. São quatro
+  declara uma **porta** e o módulo **registra a implementação** em `mount_routes`. São **cinco**
   casos, todos de kernel: `UserReader` (`core/security/identity.py`) ↔
-  `set_user_reader_factory(SqlAlchemyUserReader)`; `OrganizationReader`
+  `set_user_reader_factory(SqlAlchemyUserReader)`; `UserDirectory` (mesmo arquivo) ↔
+  `set_user_directory_factory(SqlAlchemyUserDirectory)`; `OrganizationReader`
   (`core/tenancy/context.py`) ↔ `set_organization_reader_factory(SqlAlchemyOrganizationReader)`;
   `PermissionReader` (`core/authz/context.py`) ↔
   `set_permission_reader_factory(SqlAlchemyMembershipReader)`; e `ModuleEntitlementReader`
@@ -141,6 +157,14 @@ O que existe hoje:
   Ganhar linha extra no `mount_routes` é **privilégio de kernel** — app de negócio consome
   `CurrentUserDep`/`CurrentOrganizationDep`/`require_permission(...)`/`require_module(...)` e
   pronto, sem tocar `core`; plugar é `mount_module(api, <descritor>)`, uma linha.
+  **`UserReader` lê identidade, `UserDirectory` a cria** — é o par que deixa o onboarding do
+  `access` (`backend/06`) dar login a um convidado sem importar `auth`. E as duas pontas
+  recebem a **mesma `SessionDep`** de quem chama: é isso, e não um `try`, que faz o
+  auto-cadastro de Parceiro ser atômico entre `users` (do `auth`) e `organizations` (do
+  `access`).
+  A porta de **e-mail** (`core/notifications/`) é a exceção que confirma a regra: não ganha
+  linha no `mount_routes` porque e-mail é infra, não tabela de módulo — o default é um
+  `LoggingEmailSender`.
 - **Autorização entra por capability, não por papel.** Rota e guard nomeiam a permissão
   (`require_permission("agreements.write")`); quem decide qual papel a tem é
   `PERMISSIONS_BY_ROLE`, no `access`. O `core` não conhece papel nenhum, e `Permission` é `str`

@@ -2,6 +2,7 @@ from types import TracebackType
 from typing import Protocol, Self
 
 from src.modules.access.application.ports.repositories import (
+    InvitationRepositoryProtocol,
     MembershipRepositoryProtocol,
     ModuleEntitlementRepositoryProtocol,
     OrganizationRepositoryProtocol,
@@ -21,6 +22,9 @@ class AccessUnitOfWorkProtocol(Protocol):
 
     @property
     def module_entitlements(self) -> ModuleEntitlementRepositoryProtocol: ...
+
+    @property
+    def invitations(self) -> InvitationRepositoryProtocol: ...
 
     async def __aenter__(self) -> Self: ...
 

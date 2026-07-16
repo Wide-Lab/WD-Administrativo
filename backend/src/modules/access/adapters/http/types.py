@@ -40,6 +40,16 @@ poder fazer, e o mapa papel→permissões decide quem pode. Era `company_admin` 
 spec 03 e continua sendo na prática — `agreements.write` só está nesse papel —, mas mudar
 isso agora é editar um `frozenset`, não caçar rotas."""
 
+InvitationWriterDep = Annotated[
+    CurrentOrganization,
+    Depends(require_permission(PLATFORM_PERMISSIONS.INVITATIONS_WRITE)),
+]
+"""O guard de quem convida: `company_admin` e `hr`.
+
+É ele que fecha o critério 4 da spec 06 sem um `if` na rota — a permissão é resolvida **na
+organização do path**, então um `hr` da Acme que aponte o `orgId` da Globex leva 403 pelo mesmo
+caminho de sempre. O papel dele na própria Empresa não viaja pra fora dela."""
+
 MemberReaderDep = Annotated[
     CurrentOrganization,
     Depends(require_permission(PLATFORM_PERMISSIONS.MEMBERS_READ)),

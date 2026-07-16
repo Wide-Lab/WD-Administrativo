@@ -28,6 +28,23 @@ class UserReader(Protocol):
     async def get_active_by_id(self, user_id: UserId) -> CurrentUser | None: ...
 
 
+class UserDirectory(Protocol):
+    """Porta de **escrita** de identidade: criar a pessoa que ainda não tem login.
+
+    Existe pelo mesmo motivo que o `UserReader`, e para o outro lado do verbo. O onboarding
+    (spec 06) é de `access` — é ele que sabe que um convite aceito vira vínculo —, mas a
+    tabela `users` é do `auth`. Sem esta porta, `access` importaria `auth` para criar o
+    usuário do convidado, e o seam de extração cairia no primeiro fluxo de entrada de gente.
+
+    `create` recebe a senha **em claro**, e não um hash: quem decide como uma senha é guardada
+    é o dono da identidade. Um `CentralSsoUserDirectory` futuro recusaria a senha em vez de
+    hasheá-la, e o `access` não precisaria saber da diferença."""
+
+    async def find_id_by_email(self, email: str) -> UserId | None: ...
+
+    async def create(self, email: str, name: str, password: str) -> UserId: ...
+
+
 class Authenticator[CredentialsT](Protocol):
     """Porta de autenticação: troca credenciais por uma identidade local.
 
@@ -62,3 +79,35 @@ async def get_user_reader(session: SessionDep) -> UserReader:
 
 
 UserReaderDep = Annotated[UserReader, Depends(get_user_reader)]
+
+
+type UserDirectoryFactory = Callable[[AsyncSession], UserDirectory]
+
+_user_directory_factory: UserDirectoryFactory | None = None
+
+
+def set_user_directory_factory(factory: UserDirectoryFactory) -> None:
+    """Liga a implementação de `UserDirectory` ao `core`. Chamada uma vez em `mount_routes`
+    pelo `auth`, como a do `UserReader`."""
+
+    global _user_directory_factory
+    _user_directory_factory = factory
+
+
+async def get_user_directory(session: SessionDep) -> UserDirectory:
+    """A implementação registrada, sobre a **sessão da requisição**.
+
+    Receber a mesma `SessionDep` que a unit of work de quem chama não é detalhe: é o que faz
+    o auto-cadastro de Parceiro (spec 06) ser atômico. `organizations` é do `access` e `users`
+    é do `auth`, mas os dois `INSERT` saem da mesma sessão — um `commit` só cobre os dois, e
+    um e-mail duplicado desfaz a organização junto, sem deixar tenant órfão."""
+
+    if _user_directory_factory is None:
+        raise RuntimeError(
+            "Nenhum UserDirectory registrado. O kernel `auth` deve chamar "
+            "set_user_directory_factory() em mount_routes."
+        )
+    return _user_directory_factory(session)
+
+
+UserDirectoryDep = Annotated[UserDirectory, Depends(get_user_directory)]

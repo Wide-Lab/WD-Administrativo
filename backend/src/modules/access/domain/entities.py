@@ -9,10 +9,14 @@ from src.core.types import UNSET, BaseCreateCommand, BaseUpdateCommand, UnsetTyp
 
 __all__ = [
     "AgreementStatus",
+    "Invitation",
+    "InvitationStatus",
+    "InvitationWithOrganization",
     "Membership",
     "MembershipStatus",
     "MembershipWithOrganization",
     "ModuleEntitlement",
+    "NewInvitation",
     "NewMembership",
     "NewModuleEntitlement",
     "NewOrganization",
@@ -23,6 +27,7 @@ __all__ = [
     "PartnerAgreement",
     "Persona",
     "Role",
+    "UpdateInvitation",
     "UpdateMembership",
     "UpdateOrganization",
     "UpdatePartnerAgreement",
@@ -220,3 +225,91 @@ class NewModuleEntitlement(BaseCreateCommand):
     organization_id: uuid.UUID
     module_key: ModuleKey
     granted_by: uuid.UUID
+
+
+class InvitationStatus(StrEnum):
+    """O ciclo de um convite.
+
+    `EXPIRED` **nunca é gravado** pela aplicação, e isso é decisão: quem sabe se um convite
+    venceu é `expires_at`, comparado com o agora. Gravar o status exigiria um cron pra manter
+    a coluna honesta, e até ele rodar um convite vencido responderia `pending` — duas fontes
+    da verdade divergindo justamente no instante que importa. O valor existe no enum porque a
+    spec o declara e porque um sweeper futuro (ou um relatório) tem onde escrever; hoje,
+    `effective_status` o deriva. Ver `Como ficou` da spec 06."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+
+@dataclass(frozen=True, slots=True)
+class Invitation:
+    """Um convite pra entrar numa organização com um papel já definido.
+
+    É o caminho de entrada do Colaborador e do staff da Empresa, que **não** se
+    auto-cadastram: alguém com `invitations.write` decide o papel antes de a pessoa existir. O
+    Parceiro entra pelo outro caminho (auto-cadastro), e é por isso que os dois fluxos da spec
+    06 são deliberadamente diferentes.
+
+    O convite carrega o papel, e não o vínculo: vínculo só nasce no aceite. Enquanto pendente,
+    não há `membership` nenhum — um convite não dá acesso a nada."""
+
+    id: uuid.UUID
+    email: str
+    organization_id: uuid.UUID
+    role: Role
+    token: str
+    status: InvitationStatus
+    expires_at: datetime
+    invited_by: uuid.UUID
+    created_at: datetime
+
+    def effective_status(self, now: datetime) -> InvitationStatus:
+        """O status de verdade, com a expiração já resolvida.
+
+        Um convite `pending` cujo `expires_at` passou é `EXPIRED` — sem depender de ninguém ter
+        rodado um sweeper. É esta função, e não a coluna, que o aceite consulta."""
+
+        if self.status is InvitationStatus.PENDING and now >= self.expires_at:
+            return InvitationStatus.EXPIRED
+        return self.status
+
+    def is_open(self, now: datetime) -> bool:
+        """Se o convite ainda pode ser aceito."""
+
+        return self.effective_status(now) is InvitationStatus.PENDING
+
+
+@dataclass(frozen=True, slots=True)
+class InvitationWithOrganization:
+    """Um convite já com a organização do outro lado — o que a tela pública de aceite precisa
+    (`GET /api/convites/{token}` mostra o nome da Empresa que convidou)."""
+
+    invitation: Invitation
+    organization: Organization
+
+
+@dataclass(frozen=True, slots=True)
+class NewInvitation(BaseCreateCommand):
+    """Como em `NewMembership`, o `organization_type` é o segundo lado da FK composta que
+    ancora o `CHECK` de papel×tipo — quem o preenche é o use case lendo a organização, não
+    quem chama a rota. Convidar um `hr` pra um Parceiro é impossível **no banco**, e não só
+    aqui."""
+
+    email: str
+    organization_id: uuid.UUID
+    organization_type: OrganizationType
+    role: Role
+    token: str
+    expires_at: datetime
+    invited_by: uuid.UUID
+    status: InvitationStatus = InvitationStatus.PENDING
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateInvitation(BaseUpdateCommand):
+    """Só o status muda. Mudar o papel ou o e-mail de um convite pendente seria outro convite
+    — e o token já saiu por e-mail dizendo o que dizia."""
+
+    status: InvitationStatus | UnsetType = UNSET

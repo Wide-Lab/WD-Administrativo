@@ -1,6 +1,8 @@
 import uuid
+from typing import Any, cast
 
 import sqlalchemy as sa
+from sqlalchemy import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +10,7 @@ from src.core.exceptions import ConflictError, NotFoundError
 from src.core.modules import ModuleKey
 from src.core.pagination.params import Page, PageParams
 from src.core.tenancy import OrganizationType
+from src.modules.access.adapters.db.models import Invitation as InvitationModel
 from src.modules.access.adapters.db.models import Membership as MembershipModel
 from src.modules.access.adapters.db.models import ModuleEntitlement as ModuleEntitlementModel
 from src.modules.access.adapters.db.models import Organization as OrganizationModel
@@ -18,10 +21,14 @@ from src.modules.access.application.dtos.filters import (
     PartnerAgreementFilters,
 )
 from src.modules.access.domain.entities import (
+    Invitation,
+    InvitationStatus,
+    InvitationWithOrganization,
     Membership,
     MembershipStatus,
     MembershipWithOrganization,
     ModuleEntitlement,
+    NewInvitation,
     NewMembership,
     NewModuleEntitlement,
     NewOrganization,
@@ -30,6 +37,7 @@ from src.modules.access.domain.entities import (
     OrganizationStatus,
     PartnerAgreement,
     Role,
+    UpdateInvitation,
     UpdateMembership,
     UpdateOrganization,
     UpdatePartnerAgreement,
@@ -474,5 +482,111 @@ class MembershipRepository:
             organization_id=row.organization_id,
             role=row.role,
             status=row.status,
+            created_at=row.created_at,
+        )
+
+
+class InvitationRepository:
+    """Repositório de convites.
+
+    Não é tenant-scoped pelo helper do `core`, e aqui a razão é mais forte que nas outras:
+    as duas leituras por token são **públicas** — quem aceita um convite ainda não tem sessão,
+    quanto mais organização ativa. O que escopa é o próprio token, que é a credencial."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_token_or_none(self, token: str) -> Invitation | None:
+        row = await self._get_model_by(InvitationModel.token == token)
+        return self._to_entity(row) if row else None
+
+    async def get_with_organization_by_token(
+        self,
+        token: str,
+    ) -> InvitationWithOrganization | None:
+        """O convite já com a organização que convidou — a tela pública de aceite mostra o nome
+        dela, e uma segunda consulta pra isso seria desperdício."""
+
+        result = await self._session.execute(
+            sa.select(InvitationModel, OrganizationModel)
+            .join(OrganizationModel, InvitationModel.organization_id == OrganizationModel.id)
+            .where(InvitationModel.token == token)
+        )
+        row = result.one_or_none()
+        if row is None:
+            return None
+
+        invitation, organization = row
+        return InvitationWithOrganization(
+            invitation=self._to_entity(invitation),
+            organization=_organization_to_entity(organization),
+        )
+
+    async def create(self, create_command: NewInvitation) -> Invitation:
+        """Cria um convite. Como nos outros repositórios, a violação de constraint vira
+        `ConflictError` já no `flush` — sem isto, um papel inválido pro tipo da organização
+        (o CHECK) viraria 500 em vez de resposta legível."""
+
+        model = InvitationModel(**create_command.to_dict())
+        self._session.add(model)
+
+        try:
+            await self._session.flush()
+        except IntegrityError as exc:
+            raise ConflictError("Não foi possível criar o convite.") from exc
+
+        return self._to_entity(model)
+
+    async def update(self, id_: uuid.UUID, update_command: UpdateInvitation) -> Invitation:
+        model = await self._get_model_by(InvitationModel.id == id_)
+        if model is None:
+            raise NotFoundError("Convite não encontrado.")
+
+        for field, value in update_command.defined_values().items():
+            setattr(model, field, value)
+
+        await self._session.flush()
+        return self._to_entity(model)
+
+    async def mark_accepted_if_pending(self, id_: uuid.UUID) -> bool:
+        """Gasta o convite, e devolve se **esta** chamada foi quem o gastou.
+
+        É um `UPDATE ... WHERE status = 'pending'` condicional, e não um `read` seguido de
+        `write`, porque é isto que faz o uso único ser único de verdade: dois aceites
+        simultâneos do mesmo token passariam os dois pela checagem de status e criariam dois
+        vínculos. Aqui o segundo recebe `False` — o banco decide quem chegou primeiro.
+
+        Não confere expiração: quem já sabe disso é o use case, via `effective_status`. Este
+        método responde só "ainda estava por gastar?"."""
+
+        # `execute` é tipado como `Result[Any]`, que não conhece `rowcount`; um `UPDATE` sempre
+        # devolve um `CursorResult`, e é dele que sai a contagem de linhas afetadas.
+        result = cast(
+            CursorResult[Any],
+            await self._session.execute(
+                sa.update(InvitationModel)
+                .where(
+                    InvitationModel.id == id_,
+                    InvitationModel.status == InvitationStatus.PENDING,
+                )
+                .values(status=InvitationStatus.ACCEPTED)
+            ),
+        )
+        return result.rowcount == 1
+
+    async def _get_model_by(self, condition: sa.ColumnElement[bool]) -> InvitationModel | None:
+        result = await self._session.execute(sa.select(InvitationModel).where(condition))
+        return result.scalars().one_or_none()
+
+    def _to_entity(self, row: InvitationModel) -> Invitation:
+        return Invitation(
+            id=row.id,
+            email=row.email,
+            organization_id=row.organization_id,
+            role=row.role,
+            token=row.token,
+            status=row.status,
+            expires_at=row.expires_at,
+            invited_by=row.invited_by,
             created_at=row.created_at,
         )

@@ -1,16 +1,20 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, status
+from fastapi import APIRouter, Path, Query, Response, status
 
-from src.core.security import CurrentUserDep
+from src.core.notifications import EmailSenderDep
+from src.core.security import CurrentUserDep, UserDirectoryDep, issue_session, set_session_cookie
 from src.core.tenancy import CurrentOrganizationDep, OrganizationType
 from src.modules.access.adapters.http.schemas import (
+    AcceptInvitationRequest,
     AgreementResponse,
     ContextMembership,
     CreateAgreementRequest,
+    CreateInvitationRequest,
     CreateOrganizationRequest,
     EnabledModuleResponse,
+    InvitationResponse,
     MemberResponse,
     MeSummary,
     MyContextResponse,
@@ -18,11 +22,14 @@ from src.modules.access.adapters.http.schemas import (
     OrganizationModulesResponse,
     OrganizationResponse,
     PageResponse,
+    PublicInvitationResponse,
+    RegisterPartnerRequest,
     UpdateAgreementRequest,
     UpdateMemberRequest,
 )
 from src.modules.access.adapters.http.types import (
     AgreementWriterDep,
+    InvitationWriterDep,
     MemberReaderDep,
     MemberWriterDep,
     ModuleReaderDep,
@@ -32,18 +39,24 @@ from src.modules.access.adapters.http.types import (
     UnitOfWorkDep,
 )
 from src.modules.access.application.dtos.commands import (
+    AcceptInvitationCommand,
     CreateAgreementCommand,
+    CreateInvitationCommand,
     CreateOrganizationCommand,
+    RegisterPartnerCommand,
     UpdateAgreementStatusCommand,
     UpdateMembershipCommand,
 )
 from src.modules.access.application.dtos.filters import OrganizationFilters
+from src.modules.access.application.use_cases.accept_invitation import AcceptInvitationUseCase
 from src.modules.access.application.use_cases.create_agreement import CreateAgreementUseCase
+from src.modules.access.application.use_cases.create_invitation import CreateInvitationUseCase
 from src.modules.access.application.use_cases.create_organization import (
     CreateOrganizationUseCase,
 )
 from src.modules.access.application.use_cases.disable_module import DisableModuleUseCase
 from src.modules.access.application.use_cases.enable_module import EnableModuleUseCase
+from src.modules.access.application.use_cases.get_invitation import GetInvitationUseCase
 from src.modules.access.application.use_cases.get_my_context import GetMyContextUseCase
 from src.modules.access.application.use_cases.get_my_membership import GetMyMembershipUseCase
 from src.modules.access.application.use_cases.get_organization import GetOrganizationUseCase
@@ -53,6 +66,7 @@ from src.modules.access.application.use_cases.list_modules import ListModulesUse
 from src.modules.access.application.use_cases.list_organizations import (
     ListOrganizationsUseCase,
 )
+from src.modules.access.application.use_cases.register_partner import RegisterPartnerUseCase
 from src.modules.access.application.use_cases.update_agreement_status import (
     UpdateAgreementStatusUseCase,
 )
@@ -276,6 +290,104 @@ async def disable_module(
 
     use_case = DisableModuleUseCase(uow=uow)
     await use_case.execute(organization=organization, module_key=module_key)
+
+
+@router.post(
+    "/organizacoes/{orgId}/convites",
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_invitation(
+    body: CreateInvitationRequest,
+    user: CurrentUserDep,
+    organization: InvitationWriterDep,
+    uow: UnitOfWorkDep,
+    email_sender: EmailSenderDep,
+) -> InvitationResponse:
+    """Convida alguém pra organização do path, com o papel já definido.
+
+    É o caminho de entrada do Colaborador e do staff da Empresa, que não se auto-cadastram.
+    Um `hr` só convida pra **sua** organização: a permissão é resolvida no `orgId` do path."""
+
+    use_case = CreateInvitationUseCase(uow=uow, email_sender=email_sender)
+    invitation = await use_case.execute(
+        organization=organization,
+        invited_by=user,
+        command=CreateInvitationCommand(email=body.email, role=body.role),
+    )
+
+    return InvitationResponse.from_entity(invitation)
+
+
+@router.get("/convites/{token}")
+async def get_invitation(
+    uow: UnitOfWorkDep,
+    token: Annotated[str, Path()],
+) -> PublicInvitationResponse:
+    """Os dados públicos mínimos da tela de aceite. **Sem sessão** — quem vai aceitar ainda não
+    tem uma; o que autoriza é o token.
+
+    404 se o token nunca existiu, 410 se existiu e não vale mais."""
+
+    use_case = GetInvitationUseCase(uow=uow)
+    return PublicInvitationResponse.from_entity(await use_case.execute(token))
+
+
+@router.post("/convites/{token}/aceitar")
+async def accept_invitation(
+    body: AcceptInvitationRequest,
+    response: Response,
+    uow: UnitOfWorkDep,
+    directory: UserDirectoryDep,
+    token: Annotated[str, Path()],
+) -> None:
+    """Aceita o convite e já entra: cria o login se não houver, cria o vínculo e emite sessão.
+
+    Responde 200 sem corpo, como o `POST /api/auth/login` — a identidade vem do `GET /api/me`,
+    e devolver o usuário aqui seria uma segunda fonte da verdade.
+
+    A resposta é a mesma para quem já tinha conta e para quem não tinha: o token prova controle
+    da caixa de e-mail, e o corpo não pode virar um oráculo de quem já é cadastrado."""
+
+    use_case = AcceptInvitationUseCase(uow=uow, directory=directory)
+    user_id = await use_case.execute(
+        command=AcceptInvitationCommand(
+            token=token,
+            password=body.password,
+            name=body.name,
+        ),
+    )
+
+    set_session_cookie(response, issue_session(user_id))
+
+
+@router.post("/parceiros/cadastro", status_code=status.HTTP_201_CREATED)
+async def register_partner(
+    body: RegisterPartnerRequest,
+    response: Response,
+    uow: UnitOfWorkDep,
+    directory: UserDirectoryDep,
+) -> None:
+    """Auto-cadastro de Parceiro: organização, primeiro `partner_admin` e vínculo, numa
+    transação — mais a sessão.
+
+    Rota **pública**, e a única que cria organização sem `platform_admin`: o Parceiro é
+    organização de primeiro nível. Isso não lhe dá acesso a Empresa nenhuma — quem o liga a
+    cada uma é o convênio (spec 03), que segue sendo ato da Empresa.
+
+    E-mail já cadastrado responde 409, sem deixar organização órfã."""
+
+    use_case = RegisterPartnerUseCase(uow=uow, directory=directory)
+    user_id = await use_case.execute(
+        command=RegisterPartnerCommand(
+            company_name=body.company_name,
+            document=body.document,
+            admin_name=body.admin.name,
+            admin_email=body.admin.email,
+            admin_password=body.admin.password,
+        ),
+    )
+
+    set_session_cookie(response, issue_session(user_id))
 
 
 @router.patch("/organizacoes/{orgId}/membros/{id}")
