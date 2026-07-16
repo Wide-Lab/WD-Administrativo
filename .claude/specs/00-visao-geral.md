@@ -2,7 +2,7 @@
 
 > Documento raiz. Registra o que estamos construindo, em que ordem, e quais decisões
 > já foram tomadas — inclusive as que decidimos **não** tomar ainda.
-> Última revisão: 2026-07-15.
+> Última revisão: 2026-07-16.
 
 ## O que é
 
@@ -120,37 +120,46 @@ Da casa (Central / receipt-reader), não inventadas aqui:
 
 ## Fases
 
-| Fase                         | Escopo                                                                                                                                                | Estado               |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| **1 — Núcleo da plataforma** | Identidade + sessão, organizações + tenancy, membros + autorização, entitlements de módulo, casca + personas, login. **Nenhum app de negócio ainda.** | **Em especificação** |
-| 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada         |
-| 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada         |
+| Fase                         | Escopo                                                                                                                                                | Estado                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| **1 — Núcleo da plataforma** | Identidade + sessão, organizações + tenancy, membros + autorização, entitlements de módulo, casca + personas, login. **Nenhum app de negócio ainda.** | **Em implementação**  |
+| 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada          |
+| 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada          |
+
+**Onde a fase 1 está (2026-07-16):** o eixo de **identidade** está fechado de ponta a ponta —
+backend `01`–`02` e frontend `01`–`03` implementados, dá pra subir a stack, logar e manter
+sessão. Falta todo o eixo de **`access`** (organizações, membros, autorização, entitlements,
+onboarding), que é o que faz esta plataforma ser multi-tenant e não só um login. **A próxima
+entrega é `backend/03-organizacoes-e-tenancy.md`**, que destrava `frontend/04`.
 
 O faseamento é desenhado pra que os apps (fases 2+) **não toquem no núcleo**: cada um entra
 como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement.
 
-## Índice de specs (proposto)
+## Índice de specs
 
-Implementáveis nesta ordem; cada uma declara suas dependências. Todas no formato da casa:
-`Depende de` / `Entrega` / `Objetivo` / `Fora de escopo` / `Critérios de aceite`.
+Implementáveis nesta ordem; cada uma declara suas dependências e o próprio estado no topo.
+Todas no formato da casa: `Depende de` / `Entrega` / `Objetivo` / `Fora de escopo` /
+`Critérios de aceite`. **Uma spec implementada não vira documentação do código** — ela
+continua sendo a decisão registrada; quando o código divergir dela, a divergência fica
+anotada na própria spec (seção `Como ficou`), não some.
 
 Backend:
 
-1. `backend/01-fundacao.md` — scaffold FastAPI hexagonal, Postgres async, Alembic, tooling, docker-compose, convenção de nomes.
-2. `backend/02-identidade-e-sessao.md` — usuário, login e-mail+senha (Argon2id), sessão, `GET /me`; a porta trocável pro SSO da Central.
-3. `backend/03-organizacoes-e-tenancy.md` — `Organization` (plataforma/empresa/parceiro), escopo por tenant, o convênio Empresa↔Parceiro.
-4. `backend/04-membros-e-autorizacao.md` — `Membership` (usuário↔org+papel), papéis/permissões, guard de autorização, resolução de persona.
-5. `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar.
-6. `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio).
+1. ✅ `backend/01-fundacao.md` — scaffold FastAPI hexagonal, Postgres async, Alembic, tooling, docker-compose, convenção de nomes.
+2. ✅ `backend/02-identidade-e-sessao.md` — usuário, login e-mail+senha (Argon2id), sessão, `GET /me`; a porta trocável pro SSO da Central.
+3. ⬜ `backend/03-organizacoes-e-tenancy.md` — `Organization` (plataforma/empresa/parceiro), escopo por tenant, o convênio Empresa↔Parceiro. **← próxima**
+4. ⬜ `backend/04-membros-e-autorizacao.md` — `Membership` (usuário↔org+papel), papéis/permissões, guard de autorização, resolução de persona.
+5. ⬜ `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar.
+6. ⬜ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio).
 
 Frontend:
 
-1. `frontend/01-fundacao.md` — scaffold Next (App Router), TS strict, Tailwind, shadcn, TanStack Query, zod, estrutura por feature, tooling.
-2. `frontend/02-design-system.md` — tokens/tema derivados do protótipo (escuro, acento azul), tipografia, foco, motion.
-3. `frontend/03-login-e-sessao.md` — tela de login, ciclo de sessão, cliente da API de identidade.
-4. `frontend/04-casca-e-personas.md` — app shell, route groups por persona, navegação derivada de vínculos + entitlements, guard de acesso.
-5. `frontend/05-selecao-de-organizacao.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas).
-6. `frontend/06-onboarding.md` — telas de aceite de convite, definição de senha e primeiro acesso por persona.
+1. ✅ `frontend/01-fundacao.md` — scaffold Next (App Router), TS strict, Tailwind, shadcn, TanStack Query, zod, estrutura por feature, tooling.
+2. ✅ `frontend/02-design-system.md` — tokens/tema derivados do protótipo (escuro, acento azul), tipografia, foco, motion.
+3. ✅ `frontend/03-login-e-sessao.md` — tela de login, ciclo de sessão, cliente da API de identidade.
+4. ⬜ `frontend/04-casca-e-personas.md` — app shell, route groups por persona, navegação derivada de vínculos + entitlements, guard de acesso. **Bloqueada por `backend/03`+`04`.**
+5. ⬜ `frontend/05-selecao-de-organizacao.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas).
+6. ⬜ `frontend/06-onboarding.md` — telas de aceite de convite, definição de senha e primeiro acesso por persona.
 
 ## O que não fazer (fora de escopo desta fase)
 

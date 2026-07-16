@@ -1,5 +1,7 @@
 # 04 — Casca e personas
 
+**Estado:** ⬜ não implementada. `frontend/03` ✅; bloqueada pelo `access` (`backend/04`+`05`).
+É esta spec que decide a home de verdade e aposenta a `/` placeholder da `03`.
 **Depende de:** `frontend/03-login-e-sessao.md`, `backend/04-membros-e-autorizacao.md`,
 `backend/05-modulos-e-entitlements.md`.
 **Entrega:** o app shell, os route groups por persona, e a navegação derivada de

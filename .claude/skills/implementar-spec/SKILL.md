@@ -11,10 +11,11 @@ verdade — não até "parece pronto".
 ## Passo a passo
 
 1. **Leia a spec inteira antes de escrever código**, junto com toda spec listada em
-   `Depende de:`. As specs descrevem intenção, não necessariamente o estado do repo — o
-   projeto começou só com specs, sem `backend/` nem `frontend/`. Confirme o que já existe
-   lendo os diretórios (e `git log`, se houver), não confiando no texto. Se uma dependência
-   ainda não está no código, **pare e avise o usuário** antes de prosseguir.
+   `Depende de:` — e, nas já implementadas, principalmente a seção **`Como ficou`**, que
+   registra onde o código divergiu do texto. Cada spec declara `Estado:` no topo, e
+   `00-visao-geral.md` tem o índice; use-os como mapa, mas **confirme lendo os diretórios e o
+   `git log`** — spec é intenção, não retrato do repo. Se uma dependência ainda não está no
+   código, **pare e avise o usuário** antes de prosseguir.
 2. Releia `Fora de escopo`. É tão vinculante quanto o resto da spec: não implemente nada
    listado ali, mesmo que pareça extensão natural.
 3. Implemente seguindo a arquitetura do `CLAUDE.md`:
@@ -49,8 +50,19 @@ verdade — não até "parece pronto".
 
 Se, ao ler a spec, você perceber que o código já foi além dela ou diverge de propósito, pare
 e confirme com o usuário antes de "corrigir" o código de volta pra bater com o texto — a spec
-pode estar desatualizada, não o código. Ao terminar, se a implementação mudou uma decisão,
-atualize a spec e o índice de `00-visao-geral.md`.
+pode estar desatualizada, não o código.
+
+Ao terminar, registre o resultado **na própria spec**, no formato da casa:
+
+- `Estado:` no topo — `✅ implementada (<hash>, <data>)`, com ponteiro pro `Como ficou`.
+- Uma seção **`Como ficou`** no fim, listando toda divergência entre o texto e o código, **com
+  o porquê**. Uma spec implementada não vira documentação do código nem é reescrita pra fingir
+  que acertou de primeira: o texto original é a decisão registrada, e a divergência é o
+  aprendizado — as duas coisas ficam. Se um critério de aceite deixou de valer com o tempo
+  (ex.: "`src/modules/` vazio", verdade só até a spec seguinte), diga isso ali em vez de
+  apagá-lo.
+- Atualize o índice e o estado da fase em `00-visao-geral.md`, e a tabela + a seção
+  `Estado atual` do `CLAUDE.md`.
 
 ## Não faça
 

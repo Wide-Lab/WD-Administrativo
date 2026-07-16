@@ -1,5 +1,6 @@
 # 05 — Seleção de organização
 
+**Estado:** ⬜ não implementada. Bloqueada por `frontend/04`.
 **Depende de:** `frontend/04-casca-e-personas.md`, `backend/03-organizacoes-e-tenancy.md`.
 **Entrega:** a troca de organização ativa quando um usuário pertence a mais de uma —
 o Parceiro que atende N Empresas, ou a pessoa que é Colaborador aqui e admin ali.

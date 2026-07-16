@@ -1,5 +1,6 @@
 # 04 — Membros e autorização
 
+**Estado:** ⬜ não implementada. Bloqueada por `backend/03`.
 **Depende de:** `backend/02-identidade-e-sessao.md`, `backend/03-organizacoes-e-tenancy.md`.
 **Entrega:** `memberships` (usuário↔organização↔papel), o conjunto de papéis por tipo de
 organização, o guard de permissão, a resolução de persona, e o endpoint de contexto que

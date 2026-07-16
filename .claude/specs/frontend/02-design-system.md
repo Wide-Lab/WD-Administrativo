@@ -1,5 +1,6 @@
 # 02 — Design system
 
+**Estado:** ✅ implementada (`c6294d9`, 2026-07-16). Paleta **aprovada**; ver `Como ficou`.
 **Depende de:** `frontend/01-fundacao.md`.
 **Entrega:** os tokens de cor, tipografia, foco e motion do superapp — a base visual que
 todas as telas (login, casca, personas) consomem.
@@ -16,10 +17,12 @@ preencher botão primário — é uma plataforma de produto, não uma bancada de
 Componentes de domínio e telas — são das specs seguintes. Aqui é só o sistema: tokens,
 tipografia, primitivos shadcn base (button, input, card, badge, skeleton) estilizados.
 
-## Paleta (proposta, derivada do protótipo — precisa do seu aval)
+## Paleta (derivada do protótipo — aprovada e implementada)
 
-> Extraída à mão dos screenshots; ajuste fino de hex é decisão de vocês. Nomeada por papel,
-> não por matiz, pra trocar sem renomear.
+> Extraída à mão dos screenshots. Nomeada por papel, não por matiz, pra trocar sem renomear.
+> Os hex abaixo foram aprovados como estão e vivem em `frontend/src/styles.css`, no bloco
+> `--palette-*` — **fonte única da verdade**. A implementação somou quatro tokens de contraste
+> que esta tabela não previa; ver `Como ficou`.
 
 | Token | Hex | Papel |
 |---|---|---|
@@ -66,3 +69,26 @@ são Geist em peso alto. Escala modular contida; números financeiros sempre com
 3. Foco é visível em todos os interativos; `prefers-reduced-motion` zera as animações.
 4. Números financeiros usam `tabular-nums`.
 5. Contraste AA verificado nos pares texto/fundo do sistema.
+
+## Como ficou
+
+Todos os critérios batem. O que mudou em relação à tabela de paleta:
+
+- **Quatro tokens de contraste entraram**, filhos diretos do critério 5 e da regra "`primary`
+  não vai em texto pequeno":
+  - `primary-fg` (`#7aa2ff`) — o azul **de texto/link**, clareado pra passar AA sobre `bg`.
+    `primary` (`#2f6bff`) ficou restrito a **preenchimento e ícones**, como a regra mandava.
+  - `on-primary` (`#f4f8ff`) — texto/ícone **sobre** preenchimento primário.
+  - `on-accent` (`#0b0f17`) — texto sobre preenchimento claro (`success`/`warning`), onde
+    texto claro reprovaria.
+  - `ring` — alias de `primary`, isolado num token próprio pra o anel de foco poder mudar sem
+    arrastar a ação primária junto.
+- **Duas camadas, não uma:** `--palette-*` (hex, `:root`) → `@theme inline` (utilidades do
+  Tailwind via `var()`). O `inline` é deliberado: mantém as utilidades apontando pra variável
+  em vez de congelar o hex, o que deixa um tema futuro (ex.: claro) ser só redeclarar
+  `--palette-*` num escopo, sem recompilar. A spec dizia "tema escuro, sem alternância" nesta
+  fase — continua verdade; isto é só o caminho deixado aberto.
+- **`/design-system`** é a vitrine viva dos primitivos (button, input, card, badge, skeleton),
+  não prevista na spec. É onde se confere foco, motion e contraste sem caçar tela.
+- Geist + Geist Mono via `@fontsource-variable`, raios como tokens (`--radius-*`), como
+  especificado.

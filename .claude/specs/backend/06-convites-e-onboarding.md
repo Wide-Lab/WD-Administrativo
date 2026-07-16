@@ -1,5 +1,6 @@
 # 06 — Convites e onboarding
 
+**Estado:** ⬜ não implementada. Bloqueada por `backend/03`+`04`.
 **Depende de:** `backend/02-identidade-e-sessao.md`, `backend/03-organizacoes-e-tenancy.md`,
 `backend/04-membros-e-autorizacao.md`.
 **Entrega:** os dois fluxos de entrada de gente no sistema — **Colaborador convidado** por

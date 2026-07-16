@@ -1,5 +1,6 @@
 # 03 — Organizações e tenancy
 
+**Estado:** ⬜ não implementada — **é a próxima entrega**. Dependências ✅ prontas.
 **Depende de:** `backend/01-fundacao.md`, `backend/02-identidade-e-sessao.md`.
 **Entrega:** o módulo `access` começa aqui — `organizations` (plataforma/empresa/parceiro),
 o convênio Empresa↔Parceiro, e o **contexto de tenant** que escopa todo dado do sistema por

@@ -1,5 +1,6 @@
 # 06 — Onboarding
 
+**Estado:** ⬜ não implementada. `frontend/03` ✅; bloqueada por `backend/06`.
 **Depende de:** `frontend/03-login-e-sessao.md`, `backend/06-convites-e-onboarding.md`.
 **Entrega:** as telas públicas de entrada — aceite de convite (Colaborador/staff) e
 auto-cadastro de Parceiro — mais o primeiro acesso por persona.

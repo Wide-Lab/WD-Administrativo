@@ -1,5 +1,6 @@
 # 05 — Módulos e entitlements
 
+**Estado:** ⬜ não implementada. Bloqueada por `backend/03`+`04`.
 **Depende de:** `backend/03-organizacoes-e-tenancy.md`, `backend/04-membros-e-autorizacao.md`.
 **Entrega:** o registro de módulos, a tabela de entitlement por Empresa, o guard
 `require_module`, e o **contrato que um app de negócio cumpre pra plugar** no superapp.
