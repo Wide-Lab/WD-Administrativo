@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -46,16 +46,17 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Superapp Widelab",
         lifespan=lifespan,
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
     )
 
     setup_middleware(app)
     setup_exception_handlers(app)
 
-    @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
-
-    mount_routes(app)
+    api = APIRouter()
+    mount_routes(api)
+    app.include_router(api, prefix="/api")
 
     return app
 
