@@ -174,21 +174,21 @@ chaves, e o `ModuleNav` do descritor só sai pelo `GET /modulos`, que é de `pla
 A promessa comercial fica de pé (ligar o flag faz o item aparecer sem deploy), mas a spec supunha
 o contrário. Ver `Como ficou` da `frontend/04`.
 
-**Duas dívidas atravessam a fase 1 e vale decidir antes da fase 2:** não existe **teste
-automatizado** de integração nenhum (specs 03/04/05/06 registram; a verificação é `curl` + `psql`) —
-e agora o frontend tem a sua versão: as regras puras (`nav.ts`, `home-path.ts`) têm teste, mas a
-casca, os guards, o `Can` e o seletor de organização da `05` foram verificados só a olho, uma vez,
-no browser — e o `lib/last-org.ts`, que engole falha de `localStorage`, não tem rede nenhuma. E
-`ModuleDescriptor.permissions` **não tem mecanismo que ligue capability de módulo a papel** — o
-primeiro app de negócio esbarra nisso no primeiro endpoint. Ver `Como ficou` da `backend/05`.
+**A dívida de teste do backend foi paga (`backend/07`, 2026-07-16).** O que era `curl` + `psql`
+uma vez agora são **69 testes em ~13s**, contra Postgres de verdade e com o schema saindo de
+`alembic upgrade head`: o uso único do token, a resposta uniforme do aceite e a atomicidade do
+auto-cadastro — propriedades que somem numa refatoração sem ninguém notar — quebram a suíte se
+alguém as desfizer. **Teste deixou de ser opcional no backend**: a regra está no `CLAUDE.md` e no
+passo 4 da `implementar-spec`, e o opt-in que causou a dívida (*"specs que citam testes"*) morreu.
 
-**A dívida de teste ficou mais cara com a `06`, e virou pré-requisito honesto da fase 2.** O uso
-único do token, a resposta uniforme do aceite e a atomicidade do auto-cadastro são propriedades
-que somem numa refatoração sem ninguém notar — e a verificação delas hoje é manual e não se
-repete. Uma spec de infra de teste (`pytest` + Postgres efêmero) deixou de ser "o próximo
-candidato óbvio" e passou a ser o que separa a fase 1 de uma fase 2 segura. **Ela agora existe e
-fura a fila: `backend/07-testes.md`** — escopo backend só; a dívida de teste do frontend, acima,
-continua aberta e ganha spec própria.
+**As dívidas que seguem abertas antes da fase 2:** **CI** — sem ele, a rede depende de `uv run
+pytest` antes do commit; é a spec seguinte, separada porque runner, segredo e Docker-no-CI são
+problema de infra. A **dívida de teste do frontend** continua inteira e ganha spec própria: as
+regras puras (`nav.ts`, `home-path.ts`) têm teste, mas a casca, os guards, o `Can` e o seletor de
+organização da `05` foram verificados só a olho, uma vez, no browser — e o `lib/last-org.ts`, que
+engole falha de `localStorage`, não tem rede nenhuma. E `ModuleDescriptor.permissions` **não tem
+mecanismo que ligue capability de módulo a papel** — o primeiro app de negócio esbarra nisso no
+primeiro endpoint. Ver `Como ficou` da `backend/05`.
 
 O faseamento é desenhado pra que os apps (fases 2+) **não toquem no núcleo**: cada um entra
 como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement.
@@ -209,7 +209,7 @@ Backend:
 4. ✅ `backend/04-membros-e-autorizacao.md` — `Membership` (usuário↔org+papel), papéis/permissões, `require_permission`, resolução de persona.
 5. ✅ `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar. **Fase 1 do backend fechada.**
 6. ✅ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **Fase 1 do backend fechada.** Sem rota de revogar/listar convite, e Parceiro não convida — ver `Como ficou`.
-7. ⬜ `backend/07-testes.md` — `pytest` + Postgres efêmero (testcontainers), a suíte que prende as invariantes que as `03`–`06` registraram como dívida, e a regra que faz teste deixar de ser opcional no backend. **← próxima**, furando a fila da `frontend/06`: é a dívida que as quatro últimas specs registraram e o pré-requisito da fase 2.
+7. ✅ `backend/07-testes.md` — `pytest` + Postgres efêmero (testcontainers), a suíte que prende as invariantes que as `03`–`06` registraram como dívida, e a regra que faz teste deixar de ser opcional no backend. **Pré-requisito da fase 2, pago:** 69 testes, ~13s. Faltam CI (spec seguinte) e `mount_module`, só testável quando o primeiro app de negócio existir — ver `Como ficou`.
 
 Frontend:
 

@@ -37,7 +37,10 @@ verdade — não até "parece pronto".
      errado) e **401** (sem sessão) que as specs deste projeto cobram.
    - Critérios de frontend com interação visual (foco, responsividade, `prefers-reduced-motion`)
      exigem `npm run dev` + browser real — não declare cumprido por leitura de código.
-   - Specs que citam testes: escreva os casos citados antes de rodar `npm run test`.
+   - **Backend: todo critério de aceite testável vira teste em `backend/tests/` e roda com `uv
+     run pytest`, na mesma entrega.** `curl` uma vez prova que funcionou hoje; teste prova que
+     continua funcionando. Frontend: specs que citam testes, escreva os casos citados antes de
+     `npm run test`.
 5. Rode as verificações estáticas que se aplicam (backend: `uv run ruff check .` + `uv run
    mypy src`; frontend: `npm run typecheck` + `npm run lint`). Se as skills de projeto `run`/
    `verify` já existirem, use-as; senão, use as globais `/run` e `/verify`. Passar lint e

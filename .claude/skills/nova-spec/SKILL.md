@@ -51,7 +51,10 @@ prosa para: campos de um schema, papéis, mapeamento de estado, rotas.
 ## Critérios de aceite
 
 Lista numerada, cada item verificável observando o sistema rodando (uma requisição, uma tela,
-um output de comando) — não "o código está limpo".
+um output de comando) — não "o código está limpo". **Critério de backend deve ser escrito de
+forma observável por teste automatizado** (uma requisição e um status, uma linha no banco), e
+não só por inspeção: é o que torna a regra "teste não é opcional no backend"
+(`backend/07-testes.md`) exequível sem renegociar em cada spec.
 ```
 
 ## Convenções do projeto que a spec tem que respeitar

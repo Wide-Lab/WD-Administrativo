@@ -24,6 +24,7 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 04  | membros e autorização (`access`)  | ✅  | casca e personas           | ✅  |
 | 05  | módulos e entitlements (`access`) | ✅  | seleção de organização     | ✅  |
 | 06  | convites e onboarding (`access`)  | ✅  | onboarding                 | ⬜¹ |
+| 07  | testes automatizados              | ✅  | —                          |     |
 
 ¹ **a próxima entrega.** O backend já convida e aceita, mas ninguém convida pela tela: o
 `POST /convites` e o aceite por token não têm UI, e o auto-cadastro de Parceiro também não.
@@ -32,7 +33,7 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
 `Fora de escopo` / `Critérios de aceite`).
 
-## Estado atual — kernel completo; falta a tela do onboarding
+## Estado atual — kernel completo e preso por teste; falta a tela do onboarding
 
 Backend `01`–`06` e frontend `01`–`05` estão implementados: dá pra subir a stack, logar,
 provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel, **vender módulo
@@ -42,8 +43,9 @@ persona, com a navegação saindo dos módulos que o **tenant** contratou; com a
 tem mais de um vínculo **troca de organização pelo seletor do masthead**, e o pós-login volta pra
 última organização visitada. Com a `backend/06`, **entrar no sistema deixou de ser CLI**:
 Colaborador é convidado e aceita por token; Parceiro se auto-cadastra. **A próxima entrega é
-`frontend/06-onboarding.md`**, que dá tela a esses dois caminhos; no backend, o que resta antes
-da fase 2 é a dívida de teste automatizado.
+`frontend/06-onboarding.md`**, que dá tela a esses dois caminhos. Com a `backend/07`, **a dívida
+de teste do backend foi paga**: 69 testes em ~13s contra Postgres de verdade prendem o que as
+`02`–`06` registraram como dívida, e o que resta antes da fase 2 é **CI** (spec seguinte).
 
 O que existe hoje:
 
@@ -118,6 +120,14 @@ O que existe hoje:
   o `/me` devolve só as **chaves** habilitadas, e o `ModuleNav` do descritor só sai pelo
   `GET /modulos`, que é de `platform_admin`. Ligar o flag ainda faz o item aparecer sem deploy —
   quem decide visibilidade é o entitlement. Mexeu no descritor do backend, mexe no catálogo.
+- `backend/tests/` — `pytest` contra a app de verdade (httpx + `ASGITransport`, sem rede) e um
+  Postgres efêmero por sessão (testcontainers, **porta efêmera** — a máquina de dev já tem outro
+  projeto em `localhost:5432`). `unit/` é regra pura e roda sem Docker; `integration/` migra com
+  `alembic upgrade head` e dá `TRUNCATE` + reseed da org `platform` entre cada teste — `TRUNCATE`
+  e não rollback, porque é o que deixa testar a **atomicidade** do auto-cadastro de Parceiro. A
+  fixture que decide a ergonomia é `como(role=…, org=…)`: login de verdade, cliente com cookie.
+  **`src.main` nunca é importado no topo de um módulo de teste** — ele lê `get_config()` no
+  import, e isso congelaria a config antes de o harness apontar pro container. Ver `backend/07`.
 - `docker-compose.yml` + `nginx/` — stack completa (Postgres, backend, frontend, nginx).
 - Nenhum app de negócio existe ainda — `refeicoes` e `frota` são chave registrada no backend e
   rota-placeholder no frontend, nada mais. Não assuma — confirme lendo o diretório.
@@ -180,6 +190,12 @@ O que existe hoje:
   de propósito: o kernel declara as permissões da plataforma, e cada módulo de negócio declara
   as suas no descritor — **que hoje não liga em nada**, ver o furo conhecido acima.
   Papel/tenant **nunca** entram no token de sessão — mudam a cada request.
+- **Teste não é opcional no backend.** Todo critério de aceite que se observa por requisição ou
+  por SQL vem com teste em `backend/tests/` **na mesma entrega**, não em spec futura. Fechar sem
+  teste é exceção justificada no `Como ficou` — não o default, como foi nas `03`–`06`. A suíte
+  fala com **Postgres de verdade** (testcontainers, porta efêmera) e o schema sai de `alembic
+upgrade head`: as invariantes deste backend moram no banco, e mock ou SQLite ficariam verdes
+  testando nada. Ver `backend/07-testes.md`.
 - **Schema só via Alembic**, sem `create_all`. Nomes de tabela `snake_case` no plural, **sem**
   prefixo `T0xx`. E-mail é `CITEXT`; senha é **Argon2id**, nunca bcrypt.
 - **Rotas em português; tenant no path.** `/api/me*` é o usuário global; `/api/organizacoes/{orgId}/me`
@@ -206,7 +222,10 @@ eles valem. `docker compose up db` sobe só o Postgres (backend/frontend rodam n
 | Backend (de `backend/`, via `uv run`)                                 |                                                                      |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `uvicorn src.main:app --reload`                                       | sobe em dev (`:8000`)                                                |
-| `ruff format .` / `ruff check .` / `mypy src`                         | formata / lint / typecheck                                           |
+| `ruff format .` / `ruff check .` / `mypy src tests`                   | formata / lint / typecheck (o typecheck cobre a suíte também)        |
+| `pytest`                                                              | a suíte (**exige Docker rodando**)                                   |
+| `pytest tests/unit`                                                   | só a regra pura, sem Docker                                          |
+| `pytest -k entitlement`                                               | um recorte                                                           |
 | `alembic revision --autogenerate -m "msg"` / `alembic upgrade head`   | migration                                                            |
 | `python -m src.modules.auth.cli create-user --email … --name …`       | cria usuário (bootstrap)                                             |
 | `python -m src.modules.access.cli grant --email … --role … [--org …]` | vincula usuário a organização (bootstrap; sem `--org`, a `platform`) |
