@@ -1,13 +1,12 @@
-# Configuração local do Claude Code: permissões e preferências de cada máquina.
-# As specs em .claude/specs/ são versionadas — elas são o contrato do projeto.
 .claude/settings.local.json
 
 # Lixo de sistema operacional.
 .DS_Store
 Thumbs.db
 
-# Credenciais do docker-compose (raiz) — o par versionado é o .env.example.
 /.env
 
 # As dependências e os artefatos de build ficam em backend/.gitignore e
 # frontend/.gitignore, ao lado do que eles ignoram.
+
+.vscode

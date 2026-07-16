@@ -22,12 +22,12 @@ o núcleo.** Os apps vêm depois e não devem exigir mudança no núcleo pra exi
 
 ## Atores
 
-| Ator | O que é | Escopo |
-|---|---|---|
-| **Plataforma** | A Widelab como operadora do SaaS. | Administra tenants, módulos, faturamento da própria plataforma. |
-| **Empresa** | O tenant/cliente que contrata a plataforma. **A Widelab é o tenant nº 1** (dogfood). | Habilita módulos, tem Colaboradores, define papéis internos (RH, Financeiro, Gestor). |
-| **Parceiro** | Ex.: o restaurante. Organização de **primeiro nível** — cadastra-se uma vez e atende **N Empresas**. | Portal próprio (ler QR, registrar consumo, acompanhar faturas). |
-| **Colaborador** | Pessoa vinculada a uma Empresa. | App próprio (carteira, saldo, QR de identificação, extrato). |
+| Ator            | O que é                                                                                              | Escopo                                                                                |
+| --------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **Plataforma**  | A Widelab como operadora do SaaS.                                                                    | Administra tenants, módulos, faturamento da própria plataforma.                       |
+| **Empresa**     | O tenant/cliente que contrata a plataforma. **A Widelab é o tenant nº 1** (dogfood).                 | Habilita módulos, tem Colaboradores, define papéis internos (RH, Financeiro, Gestor). |
+| **Parceiro**    | Ex.: o restaurante. Organização de **primeiro nível** — cadastra-se uma vez e atende **N Empresas**. | Portal próprio (ler QR, registrar consumo, acompanhar faturas).                       |
+| **Colaborador** | Pessoa vinculada a uma Empresa.                                                                      | App próprio (carteira, saldo, QR de identificação, extrato).                          |
 
 ## Decisões tomadas
 
@@ -40,7 +40,7 @@ Fazer microserviço agora seria pagar o custo antes de ter o problema.
 
 **Seams de extração desenhados, não usados.** O backend segue hexagonal por módulo: um
 módulo **nunca importa outro módulo direto**, só o `core` via portas, e **módulo novo não
-toca `src/core`**. Essa fronteira é o que torna um módulo *destacável*: no dia que o Carro
+toca `src/core`**. Essa fronteira é o que torna um módulo _destacável_: no dia que o Carro
 precisar escalar/deployar sozinho, ele vira um FastAPI próprio atrás do mesmo nginx em
 `/api/carro/*`, com schema próprio, sem reescrever a lógica. Projetamos pra esse dia ser
 **barato**, não pra ele ser **hoje**.
@@ -52,21 +52,21 @@ route handlers do Next como backend. Preserva a convenção da casa e a históri
 de módulos.
 
 **Multi-tenant de verdade, com autorização no núcleo.** Aqui é o **oposto** da Central de
-Aplicações: lá a decisão foi *"autentica, não autoriza"*, porque os apps já existiam com
+Aplicações: lá a decisão foi _"autentica, não autoriza"_, porque os apps já existiam com
 regras divergentes que ela não podia unificar. Aqui, o modelo compartilhado de organização,
 papéis e tenancy **é o produto** — uma Empresa cadastra suas pessoas, seus parceiros e seus
 papéis **uma vez** e isso vale pra todos os serviços. Sem isso, seria N mini-sistemas
 isolados com um menu em cima, não um superapp.
 
 **Parceiro é organização de primeiro nível.** Não é filho de uma Empresa. Ele se liga a
-cada Empresa por um **convênio** — um vínculo que carrega os termos *por Empresa* (catálogo,
+cada Empresa por um **convênio** — um vínculo que carrega os termos _por Empresa_ (catálogo,
 preços, regras de subsídio). Um mesmo restaurante atende várias Empresas com preços
 diferentes, exatamente como o protótipo promete.
 
 **Uma organização tem um tipo só, definido na criação e imutável.** `platform`, `company`
-ou `partner` — nunca os três acumulados. Uma pessoa jurídica que precise ser Empresa *e*
+ou `partner` — nunca os três acumulados. Uma pessoa jurídica que precise ser Empresa _e_
 Parceiro ao mesmo tempo não é caso do produto agora; se um dia for, o caminho é migrar
-`type` para *papéis de organização* — migração deliberada, não corrupção silenciosa. A
+`type` para _papéis de organização_ — migração deliberada, não corrupção silenciosa. A
 integridade (o tipo certo em cada lado do convênio, e o tipo não mudando sob um convênio
 existente) é garantida no banco, não só na aplicação — ver `backend/03-organizacoes-e-tenancy.md`.
 
@@ -78,7 +78,7 @@ não deve tocar **uma linha** da autorização.
 
 **Cada Empresa só enxerga os módulos que contratou — entitlement por tenant, com negação por
 padrão.** Quando uma Empresa é provisionada, a Plataforma (Widelab) marca quais módulos ela
-comprou (Refeições, Carro, …); só esses ficam liberados, e o padrão é *tudo negado* até ser
+comprou (Refeições, Carro, …); só esses ficam liberados, e o padrão é _tudo negado_ até ser
 explicitamente ligado. A habilitação é um **flag por tenant**, não um runtime de plugins —
 módulos são módulos de compilação, nada de carregar plugin dinâmico. O flag é imposto nas
 **duas pontas**: o backend **rejeita (403)** qualquer requisição a um módulo que o tenant não
@@ -89,7 +89,7 @@ deploy. Detalhe em `backend/05-modulos-e-entitlements.md` e `frontend/04-casca-e
 **Uma única app Next, com personas por route group.** As três "caras" do produto (Painel
 Admin, Portal do Parceiro, App do Colaborador — os três portais do rodapé do protótipo)
 vivem no **mesmo** app Next, em route groups (`(admin)`, `(parceiro)`, `(colaborador)`),
-compartilhando o design system. A navegação é *consciente de persona*: cada usuário vê só
+compartilhando o design system. A navegação é _consciente de persona_: cada usuário vê só
 as superfícies e módulos a que tem direito, derivados dos seus vínculos e entitlements. O
 app do Colaborador pode virar PWA instalável dentro do mesmo app quando fizer sentido. O
 seam natural do frontend é por **persona**; o do backend é por **módulo** — nenhum dos dois
@@ -99,7 +99,7 @@ seam natural do frontend é por **persona**; o do backend é por **módulo** —
 `memberships`, `module_entitlements`, …). **Sem** o prefixo `T0xx` da Central.
 
 **Rotas em português; tenant no path.** Os caminhos da API são em português
-(`/api/autenticacao/entrar`, `/api/organizacoes/{orgId}/convenios`). A organização ativa
+(`/api/auth/login`, `/api/organizacoes/{orgId}/convenios`). A organização ativa
 viaja no **path** (`/api/organizacoes/{orgId}/...`), nunca em header nem em sessão — a
 requisição é autoexplicativa, não há "organização default" implícita, e a URL do frontend é
 compartilhável por organização. Só as **rotas** são em português; nomes de tabela, coluna e
@@ -120,11 +120,11 @@ Da casa (Central / receipt-reader), não inventadas aqui:
 
 ## Fases
 
-| Fase | Escopo | Estado |
-|---|---|---|
+| Fase                         | Escopo                                                                                                                                                | Estado               |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
 | **1 — Núcleo da plataforma** | Identidade + sessão, organizações + tenancy, membros + autorização, entitlements de módulo, casca + personas, login. **Nenhum app de negócio ainda.** | **Em especificação** |
-| 2 — App Refeições | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro. | Não iniciada |
-| 3 — App Carro | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios. | Não iniciada |
+| 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada         |
+| 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada         |
 
 O faseamento é desenhado pra que os apps (fases 2+) **não toquem no núcleo**: cada um entra
 como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement.

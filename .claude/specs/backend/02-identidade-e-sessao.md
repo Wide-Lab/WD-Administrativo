@@ -62,12 +62,12 @@ tocar** em nada de `access`/autorização. Essa fronteira é a decisão registra
 
 ## Endpoints
 
-| Método | Rota                       | Ação                                                                          |
-| ------ | -------------------------- | ----------------------------------------------------------------------------- |
-| `POST` | `/api/autenticacao/entrar` | `{email, password}` → valida via `Authenticator`, emite cookie de sessão, 200 |
-| `POST` | `/api/autenticacao/sair`   | limpa o cookie, 204                                                           |
-| `GET`  | `/api/me`                  | identidade do usuário logado: `{id, email, name}`. 401 se não logado          |
-| `PUT`  | `/api/me/senha`            | logado, `{current_password, new_password}` → troca senha                      |
+| Método | Rota               | Ação                                                                          |
+| ------ | ------------------ | ----------------------------------------------------------------------------- |
+| `POST` | `/api/auth/login`  | `{email, password}` → valida via `Authenticator`, emite cookie de sessão, 200 |
+| `POST` | `/api/auth/logout` | limpa o cookie, 204                                                           |
+| `GET`  | `/api/me`          | identidade do usuário logado: `{id, email, name}`. 401 se não logado          |
+| `PUT`  | `/api/me/password` | logado, `{current_password, new_password}` → troca senha                      |
 
 `GET /api/me` devolve **só identidade**. Vínculos, personas e módulos habilitados vêm de
 `GET /api/me/contexto` e `GET /api/organizacoes/{orgId}/eu` (specs 04/05).
@@ -80,7 +80,7 @@ senha via prompt). O vínculo com a organização plataforma é dado pela spec 0
 
 ## Critérios de aceite
 
-1. `POST /api/autenticacao/entrar` com credenciais válidas seta cookie httpOnly e `GET /api/me`
+1. `POST /api/auth/login` com credenciais válidas seta cookie httpOnly e `GET /api/me`
    passa a responder a identidade; com credenciais inválidas, 401 e nenhum cookie.
 2. `GET /api/me` sem cookie responde 401.
 3. Senha nunca aparece em log nem em resposta; `password_hash` é Argon2id.
