@@ -126,11 +126,11 @@ Da casa (Central / receipt-reader), não inventadas aqui:
 | 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada         |
 | 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada         |
 
-**Onde a fase 1 está (2026-07-16):** o **backend da fase 1 está fechado de verdade** (`01`–`06`)
-e o **frontend chegou na troca de organização** (`01`–`05`): dá pra logar, cair na cara certa da
-sua persona — com a navegação saindo dos módulos que o seu tenant contratou — e **trocar de
-organização** quando se pertence a mais de uma. O eixo de identidade fecha de ponta a
-ponta; o `access` fechou os
+**Onde a fase 1 está (2026-07-16):** a **fase 1 está fechada** — backend `01`–`07` e frontend
+`01`–`06`. Dá pra **entrar no sistema pela tela** (convite ou auto-cadastro de Parceiro), logar,
+cair na cara certa da sua persona — com a navegação saindo dos módulos que o seu tenant
+contratou — e **trocar de organização** quando se pertence a mais de uma. O eixo de identidade
+fecha de ponta a ponta; o `access` fechou os
 eixos de **autorização** e **entitlement**: `backend/03` entregou `organizations`, o convênio
 Empresa↔Parceiro e o contexto de tenant; `backend/04` entregou `memberships`, os papéis por
 tipo de organização, o `require_permission` e a persona; e `backend/05` entregou o
@@ -155,12 +155,21 @@ vínculo e afrouxa só pra `platform_admin`. O multi-tenant é real.
 ninguém, porque é fato comercial e não privilégio. `GET /api/organizacoes/{orgId}/me` já
 devolve `modules`.
 
-**O que ainda falta pra fase 1:** só frontend, e só a `06` (onboarding) — que agora tem backend
-pronto pra consumir: as telas de aceite (`GET /api/convites/{token}` é público) e de
-auto-cadastro de Parceiro. Com a `frontend/05` entregue, quem tem mais de um vínculo **troca de
-organização pelo seletor do masthead**, e o pós-login volta pra última organização visitada;
-trocar de organização é navegar pra outro `orgId`, e o cache do TanStack se separa sozinho porque
-as chaves o incluem.
+**Entrar no sistema deixou de ser `curl`.** A `frontend/06` deu tela aos dois caminhos que a
+`backend/06` abriu: `/convites/[token]` (público) mostra Empresa, e-mail e papel, define a senha
+e já cai na persona; `/parceiros/cadastro` cria o Parceiro, o primeiro `partner_admin` e a
+sessão. Com a `frontend/05`, quem tem mais de um vínculo **troca de organização pelo seletor do
+masthead**, e o pós-login volta pra última organização visitada; trocar de organização é navegar
+pra outro `orgId`, e o cache do TanStack se separa sozinho porque as chaves o incluem.
+
+**O que falta agora não é fase 1:** é **CI** (a `backend/07` a deixou como spec seguinte) e a
+**infra de teste de componente** do frontend (testing-library + jsdom) — a dívida que as `04`,
+`05` e `06` registraram, e que a `06` agravou: os dois formulários de onboarding são hoje os
+maiores clientes sem teste do projeto. Depois disso, a fase 2.
+
+**A `/parceiros/cadastro` não tem link em lugar nenhum.** A `frontend/06` a entregou funcionando,
+mas nenhuma tela aponta pra ela — chega-se por URL direta. O convite, esse, chega por e-mail e o
+link já funciona. É decisão de produto (o Parceiro deve se achar sozinho?) e vira spec.
 
 **Dois buracos que a `backend/06` deixou de propósito, e que o texto dela não previa:** não há
 rota pra **revogar** nem pra **listar** convites (revogar é `UPDATE` no `psql` hoje), e um
@@ -218,7 +227,7 @@ Frontend:
 3. ✅ `frontend/03-login-e-sessao.md` — tela de login, ciclo de sessão, cliente da API de identidade.
 4. ✅ `frontend/04-casca-e-personas.md` — app shell, navegação derivada de vínculos + entitlements, guard de acesso. **Fase 1 do frontend fechada.** Não há route group por persona: persona é runtime, route group é estático — ver `Como ficou`.
 5. ✅ `frontend/05-selecao-de-organizacao.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas). O último `orgId` visitado passou a ganhar do atalho da Plataforma no pós-login — muda uma decisão da `04`, ver `Como ficou`.
-6. ⬜ `frontend/06-onboarding.md` — telas de aceite de convite, definição de senha e primeiro acesso por persona. **← próxima do frontend, e a última da fase 1** (a `backend/07` fura a fila; esta segue destravada e pode andar em paralelo).
+6. ✅ `frontend/06-onboarding.md` — telas públicas de aceite de convite e de auto-cadastro de Parceiro, com o grupo de senha compartilhado. **Fase 1 fechada.** A "terceira tela" do critério 3 (troca de senha logada) nunca existiu, e o critério 4 cede ao 2 no auto-cadastro — ver `Como ficou`.
 
 ## O que não fazer (fora de escopo desta fase)
 

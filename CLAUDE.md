@@ -23,29 +23,32 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 03  | organizações e tenancy (`access`) | ✅  | login e sessão             | ✅  |
 | 04  | membros e autorização (`access`)  | ✅  | casca e personas           | ✅  |
 | 05  | módulos e entitlements (`access`) | ✅  | seleção de organização     | ✅  |
-| 06  | convites e onboarding (`access`)  | ✅  | onboarding                 | ⬜¹ |
-| 07  | testes automatizados              | ✅  | —                          |     |
+| 06  | convites e onboarding (`access`)  | ✅  | onboarding                 | ✅  |
+| 07  | testes automatizados              | ✅  | —¹                         |     |
 
-¹ **a próxima entrega.** O backend já convida e aceita, mas ninguém convida pela tela: o
-`POST /convites` e o aceite por token não têm UI, e o auto-cadastro de Parceiro também não.
+¹ **a dívida em aberto do frontend.** Não há testing-library/jsdom: `nav`, `home-path`, os
+rótulos de erro e a política de senha têm teste puro (61, `npm run test`), mas casca, guards,
+`Can`, seletor e os **dois formulários de onboarding** foram verificados só a olho, no browser.
+É a candidata óbvia a spec, junto com a CI que a `backend/07` deixou encaminhada.
 
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
 `Fora de escopo` / `Critérios de aceite`).
 
-## Estado atual — kernel completo e preso por teste; falta a tela do onboarding
+## Estado atual — fase 1 fechada; o que falta é CI e teste de componente
 
-Backend `01`–`06` e frontend `01`–`05` estão implementados: dá pra subir a stack, logar,
+Backend `01`–`07` e frontend `01`–`06` estão implementados: dá pra subir a stack, logar,
 provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel, **vender módulo
 ligando um flag** — e **o backend nega de verdade** (403 em tenant sem vínculo, 403 em permissão
 faltante, 403 em módulo não contratado). Com a `frontend/04`, logar já cai na casca da sua
 persona, com a navegação saindo dos módulos que o **tenant** contratou; com a `frontend/05`, quem
 tem mais de um vínculo **troca de organização pelo seletor do masthead**, e o pós-login volta pra
-última organização visitada. Com a `backend/06`, **entrar no sistema deixou de ser CLI**:
-Colaborador é convidado e aceita por token; Parceiro se auto-cadastra. **A próxima entrega é
-`frontend/06-onboarding.md`**, que dá tela a esses dois caminhos. Com a `backend/07`, **a dívida
-de teste do backend foi paga**: 69 testes em ~13s contra Postgres de verdade prendem o que as
-`02`–`06` registraram como dívida, e o que resta antes da fase 2 é **CI** (spec seguinte).
+última organização visitada. Com a `backend/06` + `frontend/06`, **entrar no sistema deixou de
+ser CLI e ganhou tela**: Colaborador é convidado e aceita por token em `/convites/[token]`;
+Parceiro se auto-cadastra em `/parceiros/cadastro`. Com a `backend/07`, **a dívida de teste do
+backend foi paga**: 69 testes em ~13s contra Postgres de verdade prendem o que as `02`–`06`
+registraram como dívida. **O que resta antes da fase 2 é CI** (spec seguinte, encaminhada pela
+`backend/07`) **e a infra de teste de componente do frontend** — ver a nota ¹ da tabela.
 
 O que existe hoje:
 
@@ -100,13 +103,25 @@ O que existe hoje:
   a organização `platform`.
 - `frontend/` — scaffold Next, design system (tokens em `src/styles.css`, primitivos shadcn,
   vitrine em `/design-system`), feature `auth` (`(publico)/entrar`, `use-session`, guarda de
-  rota) e feature `context`: `use-context` (`/api/me/contexto`), `use-org-context`
-  (`/me` + nome da org), `buildNav`/`homePathFor` (puras, testadas), `AppShell`, `Can`,
-  `ModuleGuard`, `OrganizationSwitcher` (o seletor do masthead) e `lib/last-org.ts` (o último
-  `orgId`, único uso de `localStorage`). Rotas: `/` **roteia** pra home da persona (não é tela), `/plataforma`
+  rota, `PasswordFields` + a política de senha em `schema.ts`), feature `context`: `use-context`
+  (`/api/me/contexto`), `use-org-context` (`/me` + nome da org), `buildNav`/`homePathFor`
+  (puras, testadas), `AppShell`, `Can`, `ModuleGuard`, `OrganizationSwitcher` (o seletor do
+  masthead), `lib/labels.ts` (rótulos de papel/tipo) e `lib/last-org.ts` (o último `orgId`,
+  único uso de `localStorage`); e feature `onboarding`, as duas telas públicas de entrada.
+  Rotas: `/` **roteia** pra home da persona (não é tela), `(publico)/entrar`,
+  `(publico)/convites/[token]`, `(publico)/parceiros/cadastro`, `/plataforma`
   (cross-tenant, guarda por vínculo de plataforma) e `/organizacoes/[orgId]/*`, cujo `layout`
   resolve a persona e monta a casca. `refeicoes`/`frota` existem como **rotas-placeholder atrás
   do `ModuleGuard`** — as fases 2/3 as substituem.
+- **Onboarding no frontend são duas telas públicas, e nenhuma delas monta a home da persona.**
+  O aceite (`/convites/[token]`) e o auto-cadastro (`/parceiros/cadastro`) terminam num
+  `router.replace('/')`: o convite público **não devolve `orgId`** (backend/06), e quem sabe pra
+  onde ir é a `/`, que lê o `/me/contexto` já com o vínculo novo. Quem define senha usa o
+  **`PasswordFields`** (`features/auth/components`) e a `passwordFieldsShape` — uma política, um
+  número (`PASSWORD_MIN_LENGTH`). **A resposta do aceite é uniforme** pra conta nova e existente
+  (200, mesmo corpo), e é isso, não a tela, que impede vazar quem já é cadastrado; o **409 do
+  auto-cadastro conta** que o e-mail existe, e é exceção consciente. Ver `Como ficou` da
+  `frontend/06`.
 - **A organização ativa é o `orgId` da URL — não há store de "org ativa", e o seletor só navega.**
   O `localStorage` guarda **uma** coisa (`lib/last-org.ts`): o último `orgId` visitado, usado só
   pra decidir o redirect pós-login, e sempre validado contra os vínculos do `/me/contexto` antes de
