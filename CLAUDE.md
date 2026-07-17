@@ -255,9 +255,13 @@ eles valem. `docker compose up db` sobe só o Postgres (backend/frontend rodam n
 
 - **`nova-spec`** — escreve uma spec nova em `.claude/specs/` no formato da casa.
 - **`implementar-spec`** — implementa uma spec existente e confere cada critério de aceite.
-- **`run`** e **`verify`** ainda **não existem** aqui: use as skills globais `/run` e
-  `/verify`, que fazem bootstrap ao ver o projeto pela primeira vez. O scaffold já existe,
-  então **criar as versões deste projeto está destravado** — é dívida em aberto.
+- **`run`** — sobe a stack nesta máquina (compose, ou backend/frontend nativos). Embute as
+  armadilhas do ambiente do Kauan que não estão no repo: o Postgres do compose é `internal`
+  (`localhost:5432` é de outro projeto — precisa do forwarder `socat`), `pkill` não mata no
+  Windows (`taskkill /F /PID`), e `uv` que baixa pacote precisa de `NO_PROXY='*'`.
+- **`verify`** — lint/typecheck/testes das duas pontas. Deixa claro que `pytest` exige Docker e
+  ignora o `DATABASE_URL` do shell, e que **`npm run format`/`check` não devem rodar** (tocam o
+  repo inteiro e afogam o diff em CRLF; formate só seus arquivos com `--end-of-line auto`).
 
 ## Relação com a Central de Aplicações (`apps/central`)
 
