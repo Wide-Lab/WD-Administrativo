@@ -13,29 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { membershipHomePath } from '#/features/context/lib/home-path'
-import type { ContextMembership, OrganizationType, Role } from '#/features/context/types'
+import { ORGANIZATION_TYPE_LABEL, ROLE_LABEL } from '#/features/context/lib/labels'
+import type { ContextMembership } from '#/features/context/types'
 import { useMyContext } from '#/features/context/use-context'
 import { cn } from '#/lib/utils'
-
-/** Como o tipo da organização se chama pra quem a usa. */
-const ORGANIZATION_TYPE_LABEL: Record<OrganizationType, string> = {
-  platform: 'Plataforma',
-  company: 'Empresa',
-  partner: 'Parceiro',
-}
-
-/** O papel, escrito pra gente. É rótulo de exibição do valor que o backend mandou — **não** é
- *  papel→persona, que é decisão do `access` e o frontend nunca recalcula (ver `schema.ts`). */
-const ROLE_LABEL: Record<Role, string> = {
-  platform_admin: 'Administrador',
-  company_admin: 'Administrador',
-  hr: 'RH',
-  finance: 'Financeiro',
-  manager: 'Gestor',
-  collaborator: 'Colaborador',
-  partner_admin: 'Administrador',
-  partner_operator: 'Operador',
-}
 
 /** "Empresa · Colaborador" — o tipo **e** o papel.
  *
