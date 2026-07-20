@@ -4,6 +4,7 @@ from typing import Protocol
 from src.core.modules import ModuleKey
 from src.core.pagination.params import Page, PageParams
 from src.modules.access.application.dtos.filters import (
+    InvitationFilters,
     MembershipFilters,
     OrganizationFilters,
     PartnerAgreementFilters,
@@ -92,6 +93,8 @@ class ModuleEntitlementRepositoryProtocol(Protocol):
 class InvitationRepositoryProtocol(Protocol):
     """Contrato do repositório de convites consumido pelos use cases de `access`."""
 
+    async def get_by_id_or_none(self, id_: uuid.UUID) -> Invitation | None: ...
+
     async def get_by_token_or_none(self, token: str) -> Invitation | None: ...
 
     async def get_with_organization_by_token(
@@ -107,7 +110,19 @@ class InvitationRepositoryProtocol(Protocol):
         update_command: UpdateInvitation,
     ) -> Invitation: ...
 
+    async def paginate(
+        self,
+        page_params: PageParams,
+        filters: InvitationFilters | None = None,
+    ) -> Page[Invitation]: ...
+
     async def mark_accepted_if_pending(self, id_: uuid.UUID) -> bool: ...
+
+    async def mark_revoked_if_pending(
+        self,
+        id_: uuid.UUID,
+        organization_id: uuid.UUID,
+    ) -> bool: ...
 
 
 class MembershipRepositoryProtocol(Protocol):

@@ -267,18 +267,30 @@ class InvitationResponse(BaseModel):
     organization_id: uuid.UUID
     role: Role
     status: InvitationStatus
+    """O status **efetivo**, não a coluna: um convite cujo `expires_at` passou sai daqui como
+    `expired`, ainda que o banco o guarde como `pending` (spec 06 — `expired` nunca é gravado).
+
+    Mostrar a coluna crua faria a tela de gestão convidar alguém a esperar por um convite que
+    já não vale."""
+
     expires_at: datetime
     invited_by: uuid.UUID
     created_at: datetime
 
     @classmethod
-    def from_entity(cls, entity: Invitation) -> InvitationResponse:
+    def from_entity(cls, entity: Invitation, now: datetime) -> InvitationResponse:
+        """O `now` é obrigatório de propósito.
+
+        Antes da spec 08 este método copiava `entity.status`, e no `POST` isso era inofensivo
+        (convite recém-criado nunca está vencido). Deixá-lo opcional agora daria duas verdades
+        pro mesmo campo, e a errada seria a mais fácil de escrever."""
+
         return cls(
             id=entity.id,
             email=entity.email,
             organization_id=entity.organization_id,
             role=entity.role,
-            status=entity.status,
+            status=entity.effective_status(now),
             expires_at=entity.expires_at,
             invited_by=entity.invited_by,
             created_at=entity.created_at,

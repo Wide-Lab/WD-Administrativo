@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, Response, status
@@ -29,6 +30,7 @@ from src.modules.access.adapters.http.schemas import (
 )
 from src.modules.access.adapters.http.types import (
     AgreementWriterDep,
+    InvitationReaderDep,
     InvitationWriterDep,
     MemberReaderDep,
     MemberWriterDep,
@@ -61,16 +63,19 @@ from src.modules.access.application.use_cases.get_my_context import GetMyContext
 from src.modules.access.application.use_cases.get_my_membership import GetMyMembershipUseCase
 from src.modules.access.application.use_cases.get_organization import GetOrganizationUseCase
 from src.modules.access.application.use_cases.list_agreements import ListAgreementsUseCase
+from src.modules.access.application.use_cases.list_invitations import ListInvitationsUseCase
 from src.modules.access.application.use_cases.list_members import ListMembersUseCase
 from src.modules.access.application.use_cases.list_modules import ListModulesUseCase
 from src.modules.access.application.use_cases.list_organizations import (
     ListOrganizationsUseCase,
 )
 from src.modules.access.application.use_cases.register_partner import RegisterPartnerUseCase
+from src.modules.access.application.use_cases.revoke_invitation import RevokeInvitationUseCase
 from src.modules.access.application.use_cases.update_agreement_status import (
     UpdateAgreementStatusUseCase,
 )
 from src.modules.access.application.use_cases.update_membership import UpdateMembershipUseCase
+from src.modules.access.domain.entities import InvitationStatus
 
 router = APIRouter(tags=["access"])
 
@@ -315,7 +320,63 @@ async def create_invitation(
         command=CreateInvitationCommand(email=body.email, role=body.role),
     )
 
-    return InvitationResponse.from_entity(invitation)
+    return InvitationResponse.from_entity(invitation, datetime.now(UTC))
+
+
+@router.get("/organizacoes/{orgId}/convites")
+async def list_invitations(
+    organization: InvitationReaderDep,
+    uow: UnitOfWorkDep,
+    page_params: PageParamsDep,
+    invitation_status: Annotated[InvitationStatus | None, Query(alias="status")] = None,
+) -> PageResponse[InvitationResponse]:
+    """Lista os convites da organização do path — a fila de quem foi chamado e ainda não entrou.
+
+    **Sem `?status=`, devolve só os pendentes.** A pergunta que a tela faz primeiro é "o que
+    ainda está de pé pra alguém aceitar"; o histórico se pede explicitamente.
+
+    O `status` de cada item é o **efetivo**: um convite vencido sai como `expired`, mesmo com a
+    coluna em `pending` (spec 06). E nenhum item traz o `token` — ele é credencial do convidado,
+    não de quem convidou."""
+
+    now = datetime.now(UTC)
+
+    use_case = ListInvitationsUseCase(uow=uow)
+    page = await use_case.execute(
+        organization=organization,
+        page_params=page_params,
+        status=invitation_status,
+        now=now,
+    )
+
+    return PageResponse.of(
+        page,
+        [InvitationResponse.from_entity(item, now) for item in page.items],
+    )
+
+
+@router.delete(
+    "/organizacoes/{orgId}/convites/{id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def revoke_invitation(
+    organization: InvitationWriterDep,
+    uow: UnitOfWorkDep,
+    invitation_id: Annotated[uuid.UUID, Path(alias="id")],
+) -> None:
+    """Revoga um convite da organização do path — o caminho do convite mandado por engano.
+
+    `DELETE` porque revogar é **terminal**: um convite revogado não reativa, reconvidar é criar
+    outro com token novo. Mas é *soft* — grava `status = 'revoked'` e mantém a linha, que é o
+    registro de quem convidou quem e o que faz o aceite recusar com 410 em vez de 404.
+
+    Por `id`, nunca por token: o `id` é o que a listagem devolve, e o token quem convidou não
+    tem. Idempotente sobre um convite já revogado (204); **409** sobre um já aceito, porque
+    aquele virou membro e revogá-lo não removeria o acesso; **404** — não 403 — sobre um de
+    outra organização, pra a resposta não virar oráculo de existência."""
+
+    use_case = RevokeInvitationUseCase(uow=uow)
+    await use_case.execute(organization=organization, invitation_id=invitation_id)
 
 
 @router.get("/convites/{token}")

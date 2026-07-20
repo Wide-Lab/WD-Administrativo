@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import sqlalchemy as sa
@@ -16,6 +17,7 @@ from src.modules.access.adapters.db.models import ModuleEntitlement as ModuleEnt
 from src.modules.access.adapters.db.models import Organization as OrganizationModel
 from src.modules.access.adapters.db.models import PartnerAgreement as PartnerAgreementModel
 from src.modules.access.application.dtos.filters import (
+    InvitationFilters,
     MembershipFilters,
     OrganizationFilters,
     PartnerAgreementFilters,
@@ -486,15 +488,61 @@ class MembershipRepository:
         )
 
 
+def _effective_status_condition(
+    status: InvitationStatus,
+    now: datetime,
+) -> sa.ColumnElement[bool]:
+    """O gêmeo em SQL de `Invitation.effective_status` — a mesma regra, escrita onde o `WHERE`
+    a alcança.
+
+    Ela **precisa** viver no SQL, e não num `filter()` sobre a página já lida: o `total` da
+    paginação sai de um `COUNT` sobre esta mesma query, e filtrar depois faria a lista contar
+    vencidos como pendentes e devolver menos itens do que o número que ela própria anuncia.
+    Paginação que mente é pior que paginação que falta.
+
+    **São duas escritas da mesma decisão, e é dívida assumida** — quem mexer em
+    `effective_status` tem que mexer aqui. O que segura as duas juntas é um teste que compara
+    as duas leituras convite a convite; sem ele, elas divergem em silêncio."""
+
+    match status:
+        case InvitationStatus.PENDING:
+            return sa.and_(
+                InvitationModel.status == InvitationStatus.PENDING,
+                InvitationModel.expires_at > now,
+            )
+        case InvitationStatus.EXPIRED:
+            # Vencido é `pending` na **coluna** — `expired` nunca é gravado (spec 06). Sem esta
+            # linha, filtrar por `expired` devolveria sempre vazio.
+            return sa.and_(
+                InvitationModel.status == InvitationStatus.PENDING,
+                InvitationModel.expires_at <= now,
+            )
+        case InvitationStatus.ACCEPTED | InvitationStatus.REVOKED:
+            # Terminais: a coluna já é a verdade, e nenhum relógio os move.
+            return InvitationModel.status == status
+
+
 class InvitationRepository:
     """Repositório de convites.
 
     Não é tenant-scoped pelo helper do `core`, e aqui a razão é mais forte que nas outras:
     as duas leituras por token são **públicas** — quem aceita um convite ainda não tem sessão,
-    quanto mais organização ativa. O que escopa é o próprio token, que é a credencial."""
+    quanto mais organização ativa. O que escopa é o próprio token, que é a credencial.
+
+    As leituras de **gestão** (spec 08) são o outro caso: elas têm sessão e organização ativa,
+    e recebem o `organization_id` explicitamente em cada método. Nenhuma delas o infere."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def get_by_id_or_none(self, id_: uuid.UUID) -> Invitation | None:
+        """Um convite por id, sem escopo de organização.
+
+        Quem confere o tenant é o use case, que precisa distinguir "não existe" de "existe e é
+        de outra Empresa" — as duas viram 404, mas por caminhos que o código nomeia."""
+
+        row = await self._get_model_by(InvitationModel.id == id_)
+        return self._to_entity(row) if row else None
 
     async def get_by_token_or_none(self, token: str) -> Invitation | None:
         row = await self._get_model_by(InvitationModel.token == token)
@@ -573,6 +621,80 @@ class InvitationRepository:
             ),
         )
         return result.rowcount == 1
+
+    async def mark_revoked_if_pending(
+        self,
+        id_: uuid.UUID,
+        organization_id: uuid.UUID,
+    ) -> bool:
+        """Revoga o convite, e devolve se **esta** chamada foi quem o revogou.
+
+        Mesma forma do `mark_accepted_if_pending`, e pelo mesmo motivo: é um `UPDATE ... WHERE
+        status = 'pending'`, e não um `if` sobre um status lido antes. É o banco que decide a
+        corrida — dois `DELETE` simultâneos, ou um `DELETE` competindo com o aceite —, e quem
+        chega primeiro leva o `pending`. O outro recebe `False` e vai perguntar por quê.
+
+        O `organization_id` entra **no mesmo `WHERE`**, e não numa conferência antes: assim não
+        existe janela entre "confirmei que é minha" e "escrevi". Um id de outra Empresa
+        simplesmente não casa, e a linha dela não é tocada nem por um instante.
+
+        A revogação é **soft** — grava o status, mantém a linha. A linha é o registro de quem
+        convidou quem, e o aceite precisa dela pra recusar com 410 em vez de 404.
+
+        Note que um convite **vencido** casa com este `WHERE`: a coluna dele é `pending`
+        (`expired` nunca é gravado). Revogá-lo é 204 e grava `revoked`, o que é a resposta certa
+        — quem revoga está dizendo "este convite não vale", e ele já não valia."""
+
+        result = cast(
+            CursorResult[Any],
+            await self._session.execute(
+                sa.update(InvitationModel)
+                .where(
+                    InvitationModel.id == id_,
+                    InvitationModel.organization_id == organization_id,
+                    InvitationModel.status == InvitationStatus.PENDING,
+                )
+                .values(status=InvitationStatus.REVOKED)
+            ),
+        )
+        return result.rowcount == 1
+
+    async def paginate(
+        self,
+        page_params: PageParams,
+        filters: InvitationFilters | None = None,
+    ) -> Page[Invitation]:
+        """Os convites de uma organização, filtrados pelo status **efetivo**.
+
+        O filtro de status não olha a coluna crua: ver `_effective_status_condition`."""
+
+        filters = filters or InvitationFilters()
+
+        stmt = sa.select(InvitationModel)
+        if filters.organization_id is not None:
+            stmt = stmt.where(InvitationModel.organization_id == filters.organization_id)
+        if filters.status is not None:
+            stmt = stmt.where(
+                _effective_status_condition(
+                    filters.status,
+                    filters.now if filters.now is not None else datetime.now(UTC),
+                )
+            )
+        stmt = stmt.order_by(InvitationModel.created_at.desc())
+
+        count_stmt = sa.select(sa.func.count()).select_from(stmt.subquery())
+        total = await self._session.scalar(count_stmt) or 0
+
+        result = await self._session.execute(
+            stmt.offset((page_params.page - 1) * page_params.page_size).limit(page_params.page_size)
+        )
+
+        return Page(
+            items=[self._to_entity(row) for row in result.scalars().all()],
+            total=total,
+            page=page_params.page,
+            page_size=page_params.page_size,
+        )
 
     async def _get_model_by(self, condition: sa.ColumnElement[bool]) -> InvitationModel | None:
         result = await self._session.execute(sa.select(InvitationModel).where(condition))

@@ -44,13 +44,24 @@ class PlatformPermissions:
     """Conveniar um Parceiro, suspender ou reativar o convênio. Só faz sentido numa Empresa —
     o `CreateAgreementUseCase` recusa os outros tipos."""
 
+    INVITATIONS_READ: Permission = "invitations.read"
+    """Ver os convites da organização ativa — o que ainda está de pé pra alguém aceitar.
+
+    Separada da `invitations.write` pelo mesmo desenho que separa `members.read` de
+    `members.write`: listar é leitura. Quem convida enxerga o que convidou; ninguém a mais — e
+    ela **não** dá o token, que a `InvitationResponse` não devolve (spec 06)."""
+
     INVITATIONS_WRITE: Permission = "invitations.write"
-    """Convidar alguém pra organização ativa, com um papel já definido.
+    """Convidar alguém pra organização ativa (com um papel já definido) e revogar convite.
 
     É `members.write` de uma pessoa que ainda não é membro — e não se confunde com ele: quem
     edita vínculo existente mexe em quem já entrou, quem convida decide quem entra. O `hr`
     tem esta e **não** tem `members.write`, e é exatamente essa a diferença entre os dois
-    papéis nesta fase."""
+    papéis nesta fase.
+
+    Revogar entra aqui, e não numa capability própria: desfazer o convite mandado por engano é
+    o mesmo ato de decidir quem entra, visto pelo avesso. Quem pode chamar não precisa de
+    permissão nova pra desconvidar."""
 
     MODULES_READ: Permission = "modules.read"
     """Ver o que a Empresa ativa contratou, junto do catálogo do que dá pra contratar."""
@@ -101,12 +112,14 @@ PERMISSIONS_BY_ROLE: Mapping[Role, frozenset[Permission]] = {
             PlatformPermissions.MEMBERS_READ,
             PlatformPermissions.MEMBERS_WRITE,
             PlatformPermissions.AGREEMENTS_WRITE,
+            PlatformPermissions.INVITATIONS_READ,
             PlatformPermissions.INVITATIONS_WRITE,
         }
     ),
     Role.HR: frozenset(
         {
             PlatformPermissions.MEMBERS_READ,
+            PlatformPermissions.INVITATIONS_READ,
             PlatformPermissions.INVITATIONS_WRITE,
         }
     ),
@@ -117,6 +130,8 @@ PERMISSIONS_BY_ROLE: Mapping[Role, frozenset[Permission]] = {
         {
             PlatformPermissions.MEMBERS_READ,
             PlatformPermissions.MEMBERS_WRITE,
+            PlatformPermissions.INVITATIONS_READ,
+            PlatformPermissions.INVITATIONS_WRITE,
         }
     ),
     Role.PARTNER_OPERATOR: frozenset(),
@@ -130,7 +145,14 @@ módulo de negócio, que a spec 05 deixa cada módulo declarar. Eles existem aqu
 
 `platform_admin` não recebe `agreements.write`: conveniar é ato da Empresa, e o convênio
 carrega os termos *dela*. A plataforma provisiona tenants e conserta vínculos — não assina
-contrato no lugar do cliente."""
+contrato no lugar do cliente. Pelo mesmo motivo ele não recebe as duas de `invitations`
+(spec 08): convidar é ato da organização, não da Plataforma.
+
+`partner_admin` recebe as duas de `invitations` (spec 08), e é o que faz **um Parceiro
+crescer**: como o auto-cadastro (spec 06) cria só o primeiro `partner_admin`, sem isto o
+segundo membro de um Parceiro só nascia pela CLI. Ele não ganha rota nova — usa as mesmas
+três de convite, e o `CHECK` do banco já barra convidar papel de Empresa pra um Parceiro.
+`partner_operator` segue sem nenhuma: Parceiro cresce pela mão do seu admin, como a Empresa."""
 
 
 _PERSONA_BY_COMPANY_ROLE: Mapping[Role, Persona] = {

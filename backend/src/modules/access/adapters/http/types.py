@@ -40,15 +40,30 @@ poder fazer, e o mapa papel→permissões decide quem pode. Era `company_admin` 
 spec 03 e continua sendo na prática — `agreements.write` só está nesse papel —, mas mudar
 isso agora é editar um `frozenset`, não caçar rotas."""
 
+InvitationReaderDep = Annotated[
+    CurrentOrganization,
+    Depends(require_permission(PLATFORM_PERMISSIONS.INVITATIONS_READ)),
+]
+"""O guard de quem **vê** os convites: `company_admin`, `hr` e `partner_admin` (spec 08).
+
+Separado do writer pelo mesmo desenho que separa `members.read` de `members.write` — e a
+separação tem consequência de verdade: um papel de leitura futura enxerga a fila sem poder
+convidar. Um `finance` ou um `collaborator` leva 403 aqui."""
+
 InvitationWriterDep = Annotated[
     CurrentOrganization,
     Depends(require_permission(PLATFORM_PERMISSIONS.INVITATIONS_WRITE)),
 ]
-"""O guard de quem convida: `company_admin` e `hr`.
+"""O guard de quem convida **e revoga**: `company_admin`, `hr` e, desde a spec 08,
+`partner_admin`.
 
 É ele que fecha o critério 4 da spec 06 sem um `if` na rota — a permissão é resolvida **na
 organização do path**, então um `hr` da Acme que aponte o `orgId` da Globex leva 403 pelo mesmo
-caminho de sempre. O papel dele na própria Empresa não viaja pra fora dela."""
+caminho de sempre. O papel dele na própria Empresa não viaja pra fora dela.
+
+O `partner_admin` entrar aqui é o que faz um **Parceiro crescer** (spec 08), e não custou rota
+nova: ele usa as mesmas três de convite. Quem garante que ele só convida papel de Parceiro é o
+`CHECK` do banco, não um `if` — a mesma divisão de trabalho da spec 06."""
 
 MemberReaderDep = Annotated[
     CurrentOrganization,

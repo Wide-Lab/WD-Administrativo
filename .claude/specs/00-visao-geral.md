@@ -183,11 +183,17 @@ o que a spec de CI vai ter que tratar com allowlist.
 mas nenhuma tela aponta pra ela — chega-se por URL direta. O convite, esse, chega por e-mail e o
 link já funciona. É decisão de produto (o Parceiro deve se achar sozinho?) e vira spec.
 
-**Dois buracos que a `backend/06` deixou de propósito, e que o texto dela não previa:** não há
-rota pra **revogar** nem pra **listar** convites (revogar é `UPDATE` no `psql` hoje), e um
-**Parceiro não consegue crescer** — só Empresa convida, então o segundo membro de um Parceiro
-só nasce pela CLI. Nenhum dos dois estava nos critérios; os dois viraram a **`backend/08`**
-(ainda por implementar). Ver `Como ficou` da `backend/06`.
+**Os dois buracos que a `backend/06` deixou de propósito foram fechados pela `backend/08`
+(2026-07-20).** Não havia rota pra **revogar** nem pra **listar** convites (revogar era `UPDATE`
+no `psql`), e um **Parceiro não conseguia crescer** — só Empresa convidava, então o segundo
+membro de um Parceiro só nascia pela CLI. Agora `GET`/`DELETE /api/organizacoes/{orgId}/convites`
+existem, e o `partner_admin` tem `invitations.read`/`invitations.write` — sem rota nova pro
+Parceiro: ele usa as mesmas três, e o `CHECK` do banco já barra papel de Empresa. Nada de
+migration. O que a spec cobrou foi a **fronteira do status efetivo**: ele é derivado
+(`expired` nunca é gravado), e o filtro `?status=` precisou de um gêmeo em SQL do
+`effective_status`, porque filtrar em Python depois de paginar faria o `total` mentir. As duas
+escritas da mesma regra são dívida, presa por um teste que as compara item a item. Ver `Como
+ficou` da `backend/08`.
 
 **Um furo da casca que a `frontend/04` registrou:** os metadados de navegação de um módulo
 (label, path) moram **no frontend**, não no contexto — o `/me` devolve `modules` como lista de
@@ -237,7 +243,7 @@ Backend:
 5. ✅ `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar. **Fase 1 do backend fechada.**
 6. ✅ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **Fase 1 do backend fechada.** Sem rota de revogar/listar convite, e Parceiro não convida — ver `Como ficou`.
 7. ✅ `backend/07-testes.md` — `pytest` + Postgres efêmero (testcontainers), a suíte que prende as invariantes que as `03`–`06` registraram como dívida, e a regra que faz teste deixar de ser opcional no backend. **Pré-requisito da fase 2, pago:** 69 testes, ~13s. Faltam CI (spec seguinte) e `mount_module`, só testável quando o primeiro app de negócio existir — ver `Como ficou`.
-8. ⬜ `backend/08-gestao-de-convites.md` — listar e revogar convite, e dar ao `partner_admin` o direito de convidar: os três buracos que a `06` deixou de propósito. Sem migration (o enum já tem `revoked`, permissão é código); a tela de gestão e o link pra `/parceiros/cadastro` são spec de frontend própria.
+8. ✅ `backend/08-gestao-de-convites.md` — listar e revogar convite, e dar ao `partner_admin` o direito de convidar: os três buracos que a `06` deixou de propósito, fechados. Sem migration (o enum já tinha `revoked`, permissão é código); nova capability `invitations.read`. A listagem devolve o status **efetivo** e, sem `?status=`, só os pendentes; revogar é `DELETE` soft por `UPDATE` condicional (409 no já aceito, 404 no de outra org). 235 testes. Fica de dívida o status efetivo escrito duas vezes (Python e SQL) — ver `Como ficou`. A tela de gestão e o link pra `/parceiros/cadastro` seguem sendo spec de frontend própria.
 9. ✅ `backend/09-capabilities-de-modulo.md` — o mecanismo que liga capability declarada por um módulo a papel: o descritor declara `grants` (papel→capabilities) e o `PermissionReader` soma os descritores do registry ao mapa do kernel. Sem migration. **O furo que a `05` registrou, fechado — a `backend/10` está destravada.** Capability de módulo é namespaced pela chave e módulo não concede a `platform_admin`; as duas violações derrubam a subida. 86 testes. Fica de dívida a soma duplicada entre o reader e o `/me` — ver `Como ficou`.
 10. ✅ `backend/10-frota.md` — o **primeiro app de negócio**: veículos, condutores, registro de uso (retroativo) e relatório de quilometragem. Migration `0006`, com a constraint de exclusão que impede sobreposição de período no mesmo veículo. **O contrato de plugagem das `05`/`09` provado num módulo de verdade: zero mudança em `src/core`.** 216 testes. Ficam de dívida a duplicação de `PageResponse`/`get_page_params`/`_pg_enum` (a fronteira cobrou) e o `alembic check`, que **já não estava limpo antes** — ver `Como ficou`. As telas são spec de frontend própria.
 

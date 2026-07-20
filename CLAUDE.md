@@ -25,7 +25,7 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 05  | módulos e entitlements (`access`) | ✅  | seleção de organização     | ✅  |
 | 06  | convites e onboarding (`access`)  | ✅  | onboarding                 | ✅  |
 | 07  | testes automatizados              | ✅  | —¹                         |     |
-| 08  | gestão de convites (`access`)     | ⬜  |                            |     |
+| 08  | gestão de convites (`access`)     | ✅  |                            |     |
 | 09  | capabilities de módulo            | ✅  |                            |     |
 | 10  | **frota** (1º app de negócio)     | ✅  | —²                         |     |
 
@@ -57,11 +57,12 @@ registraram como dívida. Com a `backend/09`, **o último bloqueio do primeiro a
 uma capability declarada por um módulo chega a um papel — 86 testes. E com a `backend/10`,
 **o primeiro app de negócio existe**: a Frota tem schema (migration `0006`), 14 rotas sob
 `/api/organizacoes/{orgId}/frota/*` e sete capabilities próprias, importa **só** `src.core`, e
-`src/core` não mudou em nenhuma linha — 216 testes. Um `manager` cadastra veículo e lança viagem
-porque o `grants` do descritor chega até ele, sem uma linha em `PERMISSIONS_BY_ROLE`. **O que
+`src/core` não mudou em nenhuma linha. Um `manager` cadastra veículo e lança viagem
+porque o `grants` do descritor chega até ele, sem uma linha em `PERMISSIONS_BY_ROLE`. E com a
+`backend/08`, **o convite deixou de ser via só de ida**: listar e revogar viraram rota e o
+`partner_admin` passou a convidar — 235 testes. **O que
 resta antes da fase 2 é CI** (encaminhada pela `backend/07`) **e a infra de teste de componente do
-frontend** — ver a nota ¹ da tabela; e as **telas da frota** (`frontend/07`), nota ². A
-`backend/08` (listar/revogar convite, Parceiro convida) está escrita e **não** implementada.
+frontend** — ver a nota ¹ da tabela; e as **telas da frota** (`frontend/07`), nota ².
 
 **Duas dívidas que a `backend/10` descobriu e não pôde pagar:** `PageResponse`, `get_page_params`
 e o helper `_pg_enum` moram no `access`, um app de negócio não pode importá-los, e o critério da
@@ -82,7 +83,8 @@ O que existe hoje:
   `GET /api/organizacoes/{orgId}`, `/convenios` (criar, listar, suspender/reativar),
   `GET /api/me/contexto`, `GET /api/organizacoes/{orgId}/me`,
   `GET`/`PATCH /api/organizacoes/{orgId}/membros`, `GET`/`PUT`/`DELETE
-/api/organizacoes/{orgId}/modulos[/{chave}]`, `POST /api/organizacoes/{orgId}/convites`, e as
+/api/organizacoes/{orgId}/modulos[/{chave}]`, `POST`/`GET /api/organizacoes/{orgId}/convites`,
+  `DELETE /api/organizacoes/{orgId}/convites/{id}`, e as
   **públicas** `GET /api/convites/{token}`, `POST /api/convites/{token}/aceitar` e
   `POST /api/parceiros/cadastro`. Migrations `0002_organizations` — que **semeia a organização
   `platform`** (`01890000-0000-7000-8000-000000000001`) —, `0003_memberships`,
@@ -93,8 +95,25 @@ O que existe hoje:
   o Parceiro **se auto-cadastra** (`POST /api/parceiros/cadastro`, público) e a organização, o
   primeiro `partner_admin` e o vínculo nascem **numa transação só**. Convite expirado/revogado/
   já aceito responde **410**; a expiração é derivada de `expires_at`, e `status = 'expired'`
-  nunca é gravado. **Não há rota de revogar nem de listar convite**, e **Parceiro não convida** —
-  os dois são buracos conhecidos, ver `Como ficou` da `backend/06`.
+  nunca é gravado.
+- **Gerir convite é listar e revogar** (`backend/08`, os buracos que a `06` deixou e que já estão
+  fechados). `GET .../convites` é `invitations.read` (capability nova) e devolve o status
+  **efetivo** — vencido sai como `expired` sem nada ter gravado a coluna —, com `?status=` sobre o
+  efetivo e, **sem o parâmetro, só os pendentes**. Filtrar é SQL, não `filter()` em Python: o
+  `total` da paginação sai do mesmo `WHERE`, e filtrar depois de paginar faria a lista mentir o
+  próprio tamanho. O preço é o `effective_status` existir duas vezes (Python e SQL), preso por um
+  teste que compara as duas leituras item a item. `DELETE .../convites/{id}` é `invitations.write`,
+  **soft** (grava `revoked`, mantém a linha, que é o que faz o aceite recusar com 410 e não 404) e
+  por `id`, nunca por token. 204 no pendente e no já revogado (idempotente), **409 no já aceito**
+  (aquele virou membro; tirar acesso é `members.write`), **404 — não 403 — no de outra
+  organização**, pra a resposta não virar oráculo. A revogação é `UPDATE ... WHERE id AND
+  organization_id AND status = 'pending'`: **a escrita decide e a leitura só explica** o 404/409
+  depois, senão a corrida que o `UPDATE` fecha voltaria pela porta dos fundos.
+- **Parceiro cresce, e não custou rota nova** (`backend/08`): `partner_admin` ganhou
+  `invitations.read`/`invitations.write` e usa as **mesmas** três rotas de convite. Antes disso o
+  auto-cadastro criava só o primeiro `partner_admin`, e o segundo membro de um Parceiro só nascia
+  pela CLI. `partner_operator` segue sem nenhuma das duas, e `platform_admin` **também não as
+  tem** — convidar é ato da organização, não da Plataforma, como o `agreements.write`.
 - **Papéis e permissões são fixos e declarados em código**, em `access/domain/permissions.py`
   (`ROLES_BY_ORGANIZATION_TYPE`, `PERMISSIONS_BY_ROLE`, `persona_for`). Papel só vale no tipo
   de organização certo, e **quem garante é o banco**: `memberships` tem um `organization_type`
@@ -129,10 +148,11 @@ O que existe hoje:
   opera a frota do cliente. **Dívida:** o `/me` e o guard somam a permissão em dois lugares
   distintos que nada obriga a concordar — ver `Como ficou` da `backend/09`.
 - **Criar membro é convite** (`POST /api/organizacoes/{orgId}/convites` + aceite), não `POST`
-  direto. A **CLI de vínculo continua**, agora só pro que o convite não alcança — o bootstrap do
-  primeiro `platform_admin`, que não tem quem o convide, e o segundo membro de um Parceiro:
-  `python -m src.modules.access.cli grant --email … --role … [--org …]`; sem `--org`, o alvo é
-  a organização `platform`.
+  direto. A **CLI de vínculo continua**, agora só pro que o convite não alcança — que depois da
+  `backend/08` é **um caso só**: o bootstrap do primeiro `platform_admin`, que não tem quem o
+  convide. (O segundo membro de um Parceiro era o outro caso, e deixou de ser: o `partner_admin`
+  convida.) `python -m src.modules.access.cli grant --email … --role … [--org …]`; sem `--org`, o
+  alvo é a organização `platform`.
 - `frontend/` — scaffold Next, design system (tokens em `src/styles.css`, primitivos shadcn,
   vitrine em `/design-system`), feature `auth` (`(publico)/entrar`, `use-session`, guarda de
   rota, `PasswordFields` + a política de senha em `schema.ts`), feature `context`: `use-context`
@@ -173,7 +193,7 @@ O que existe hoje:
   `alembic upgrade head` e dá `TRUNCATE` + reseed da org `platform` entre cada teste — `TRUNCATE`
   e não rollback, porque é o que deixa testar a **atomicidade** do auto-cadastro de Parceiro. A
   fixture que decide a ergonomia é `como(role=…, org=…)`: login de verdade, cliente com cookie.
-  **216 testes** depois da `backend/10` (86 + 130 da frota). Duas fixtures de registry, e a
+  **235 testes** depois da `backend/08` (216 + 19 de gestão de convite). Duas fixtures de registry, e a
   diferença importa: `registry_isolado` salva e restaura, `registry_vazio` **também limpa** — quem
   afirma igualdade exata sobre `module_permissions_for(...)` precisa da segunda, porque a frota
   agora concede de verdade e entraria na soma.
