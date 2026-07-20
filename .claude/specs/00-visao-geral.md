@@ -174,8 +174,8 @@ link já funciona. É decisão de produto (o Parceiro deve se achar sozinho?) e 
 **Dois buracos que a `backend/06` deixou de propósito, e que o texto dela não previa:** não há
 rota pra **revogar** nem pra **listar** convites (revogar é `UPDATE` no `psql` hoje), e um
 **Parceiro não consegue crescer** — só Empresa convida, então o segundo membro de um Parceiro
-só nasce pela CLI. Nenhum dos dois estava nos critérios; os dois são spec nova. Ver
-`Como ficou` da `backend/06`.
+só nasce pela CLI. Nenhum dos dois estava nos critérios; os dois viraram a **`backend/08`**
+(ainda por implementar). Ver `Como ficou` da `backend/06`.
 
 **Um furo da casca que a `frontend/04` registrou:** os metadados de navegação de um módulo
 (label, path) moram **no frontend**, não no contexto — o `/me` devolve `modules` como lista de
@@ -219,6 +219,7 @@ Backend:
 5. ✅ `backend/05-modulos-e-entitlements.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar. **Fase 1 do backend fechada.**
 6. ✅ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **Fase 1 do backend fechada.** Sem rota de revogar/listar convite, e Parceiro não convida — ver `Como ficou`.
 7. ✅ `backend/07-testes.md` — `pytest` + Postgres efêmero (testcontainers), a suíte que prende as invariantes que as `03`–`06` registraram como dívida, e a regra que faz teste deixar de ser opcional no backend. **Pré-requisito da fase 2, pago:** 69 testes, ~13s. Faltam CI (spec seguinte) e `mount_module`, só testável quando o primeiro app de negócio existir — ver `Como ficou`.
+8. ⬜ `backend/08-gestao-de-convites.md` — listar e revogar convite, e dar ao `partner_admin` o direito de convidar: os três buracos que a `06` deixou de propósito. Sem migration (o enum já tem `revoked`, permissão é código); a tela de gestão e o link pra `/parceiros/cadastro` são spec de frontend própria.
 
 Frontend:
 
