@@ -122,9 +122,9 @@ Da casa (Central / receipt-reader), não inventadas aqui:
 
 | Fase                         | Escopo                                                                                                                                                | Estado               |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| **1 — Núcleo da plataforma** | Identidade + sessão, organizações + tenancy, membros + autorização, entitlements de módulo, casca + personas, login. **Nenhum app de negócio ainda.** | **Em implementação** |
-| 2 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada         |
-| 3 — App Carro                | Cadastro de veículos, registro de uso (condutor, km, horários), relatórios.                                                                           | Não iniciada         |
+| **1 — Núcleo da plataforma** | Identidade + sessão, organizações + tenancy, membros + autorização, entitlements de módulo, casca + personas, login. **Nenhum app de negócio ainda.** | Fechada              |
+| **2 — App Carro**            | Cadastro de veículos e condutores, registro de uso (retroativo: condutor, km, horários), relatório de quilometragem.                                  | **Em implementação** |
+| 3 — App Refeições            | Catálogo/preços por convênio, consumo via QR, cálculo de split, workflow de fatura, acerto com o Parceiro.                                            | Não iniciada         |
 
 **Onde a fase 1 está (2026-07-16):** a **fase 1 está fechada** — backend `01`–`07` e frontend
 `01`–`06`. Dá pra **entrar no sistema pela tela** (convite ou auto-cadastro de Parceiro), logar,
@@ -220,6 +220,8 @@ Backend:
 6. ✅ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **Fase 1 do backend fechada.** Sem rota de revogar/listar convite, e Parceiro não convida — ver `Como ficou`.
 7. ✅ `backend/07-testes.md` — `pytest` + Postgres efêmero (testcontainers), a suíte que prende as invariantes que as `03`–`06` registraram como dívida, e a regra que faz teste deixar de ser opcional no backend. **Pré-requisito da fase 2, pago:** 69 testes, ~13s. Faltam CI (spec seguinte) e `mount_module`, só testável quando o primeiro app de negócio existir — ver `Como ficou`.
 8. ⬜ `backend/08-gestao-de-convites.md` — listar e revogar convite, e dar ao `partner_admin` o direito de convidar: os três buracos que a `06` deixou de propósito. Sem migration (o enum já tem `revoked`, permissão é código); a tela de gestão e o link pra `/parceiros/cadastro` são spec de frontend própria.
+9. ⬜ `backend/09-capabilities-de-modulo.md` — o mecanismo que liga capability declarada por um módulo a papel: o descritor passa a declarar papel→permissões e o `PermissionReader` soma os descritores do registry ao mapa do kernel. Sem migration. **Pré-requisito do primeiro app de negócio** — o furo que a `05` registrou e que trava o primeiro endpoint da frota.
+10. ⬜ `backend/10-frota.md` — o **primeiro app de negócio**: veículos, condutores, registro de uso (retroativo) e relatório de quilometragem. Migration `0006`, com a constraint de exclusão que impede sobreposição de período no mesmo veículo. As telas são spec de frontend própria.
 
 Frontend:
 
@@ -232,7 +234,8 @@ Frontend:
 
 ## O que não fazer (fora de escopo desta fase)
 
-- Não implementar Refeições nem Carro ainda — o núcleo tem que existir e ser plugável primeiro.
+- Não implementar Refeições ainda — Carro vem antes (ver a tabela de fases), e é ele quem paga o
+  mecanismo de capability de módulo (`backend/09`) que os dois precisam.
 - Não partir em microserviços, nem criar segundo banco/segundo deploy por módulo.
 - Não construir runtime de plugins dinâmico — entitlement é flag por tenant.
 - Não acoplar à Central: identidade fica atrás de porta; SSO da Central é ligação futura, ganha spec própria.
