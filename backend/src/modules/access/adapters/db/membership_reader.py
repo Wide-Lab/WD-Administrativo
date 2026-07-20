@@ -5,7 +5,7 @@ from src.core.security import UserId
 from src.core.tenancy import OrganizationId
 from src.modules.access.adapters.db.repository import MembershipRepository
 from src.modules.access.domain.entities import Role
-from src.modules.access.domain.permissions import permissions_for
+from src.modules.access.domain.permissions import module_permissions_for, permissions_for
 
 
 class SqlAlchemyMembershipReader:
@@ -47,13 +47,19 @@ class SqlAlchemyMembershipReader:
         As duas fontes se somam: o papel na organização e, se for o caso, o `platform_admin`.
         A soma é o que faz a linha `PATCH /membros/{id}` da spec (`company_admin` **ou**
         `platform_admin`) valer sem um `if` na rota — a plataforma conserta o vínculo de uma
-        Empresa onde ela própria não tem vínculo nenhum."""
+        Empresa onde ela própria não tem vínculo nenhum.
+
+        A parcela do **vínculo** tem duas origens (spec 09): o mapa do kernel e o que os módulos
+        registrados concedem àquele papel. A parcela de **plataforma**, não — módulo não concede
+        a `platform_admin`, e somar aqui contrabandearia pela porta de dentro o que
+        `validate_module_grants` recusa na subida. A Widelab conserta vínculo e vende módulo;
+        ela não opera a frota do cliente."""
 
         granted: set[Permission] = set()
 
         role = await self.get_role(user_id=user_id, organization_id=organization_id)
         if role is not None:
-            granted |= permissions_for(role)
+            granted |= permissions_for(role) | module_permissions_for(role)
 
         if await self.is_platform_admin(user_id):
             granted |= permissions_for(Role.PLATFORM_ADMIN)

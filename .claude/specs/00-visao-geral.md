@@ -195,9 +195,11 @@ pytest` antes do commit; é a spec seguinte, separada porque runner, segredo e D
 problema de infra. A **dívida de teste do frontend** continua inteira e ganha spec própria: as
 regras puras (`nav.ts`, `home-path.ts`) têm teste, mas a casca, os guards, o `Can` e o seletor de
 organização da `05` foram verificados só a olho, uma vez, no browser — e o `lib/last-org.ts`, que
-engole falha de `localStorage`, não tem rede nenhuma. E `ModuleDescriptor.permissions` **não tem
-mecanismo que ligue capability de módulo a papel** — o primeiro app de negócio esbarra nisso no
-primeiro endpoint. Ver `Como ficou` da `backend/05`.
+engole falha de `localStorage`, não tem rede nenhuma. O furo de **capability de módulo** que a
+`05` registrou **foi fechado pela `backend/09`**: o descritor declara `grants` e o
+`PermissionReader` os soma, então o primeiro endpoint da frota já tem como ser autorizado. O que
+sobrou dele é menor e está no `Como ficou` da `09` — o `/me` e o guard somam a permissão em dois
+lugares que nada obriga a concordar.
 
 O faseamento é desenhado pra que os apps (fases 2+) **não toquem no núcleo**: cada um entra
 como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement.
@@ -220,7 +222,7 @@ Backend:
 6. ✅ `backend/06-convites-e-onboarding.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **Fase 1 do backend fechada.** Sem rota de revogar/listar convite, e Parceiro não convida — ver `Como ficou`.
 7. ✅ `backend/07-testes.md` — `pytest` + Postgres efêmero (testcontainers), a suíte que prende as invariantes que as `03`–`06` registraram como dívida, e a regra que faz teste deixar de ser opcional no backend. **Pré-requisito da fase 2, pago:** 69 testes, ~13s. Faltam CI (spec seguinte) e `mount_module`, só testável quando o primeiro app de negócio existir — ver `Como ficou`.
 8. ⬜ `backend/08-gestao-de-convites.md` — listar e revogar convite, e dar ao `partner_admin` o direito de convidar: os três buracos que a `06` deixou de propósito. Sem migration (o enum já tem `revoked`, permissão é código); a tela de gestão e o link pra `/parceiros/cadastro` são spec de frontend própria.
-9. ⬜ `backend/09-capabilities-de-modulo.md` — o mecanismo que liga capability declarada por um módulo a papel: o descritor passa a declarar papel→permissões e o `PermissionReader` soma os descritores do registry ao mapa do kernel. Sem migration. **Pré-requisito do primeiro app de negócio** — o furo que a `05` registrou e que trava o primeiro endpoint da frota.
+9. ✅ `backend/09-capabilities-de-modulo.md` — o mecanismo que liga capability declarada por um módulo a papel: o descritor declara `grants` (papel→capabilities) e o `PermissionReader` soma os descritores do registry ao mapa do kernel. Sem migration. **O furo que a `05` registrou, fechado — a `backend/10` está destravada.** Capability de módulo é namespaced pela chave e módulo não concede a `platform_admin`; as duas violações derrubam a subida. 86 testes. Fica de dívida a soma duplicada entre o reader e o `/me` — ver `Como ficou`.
 10. ⬜ `backend/10-frota.md` — o **primeiro app de negócio**: veículos, condutores, registro de uso (retroativo) e relatório de quilometragem. Migration `0006`, com a constraint de exclusão que impede sobreposição de período no mesmo veículo. As telas são spec de frontend própria.
 
 Frontend:

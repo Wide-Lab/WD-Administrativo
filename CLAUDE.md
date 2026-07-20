@@ -25,6 +25,8 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 05  | módulos e entitlements (`access`) | ✅  | seleção de organização     | ✅  |
 | 06  | convites e onboarding (`access`)  | ✅  | onboarding                 | ✅  |
 | 07  | testes automatizados              | ✅  | —¹                         |     |
+| 08  | gestão de convites (`access`)     | ⬜  |                            |     |
+| 09  | capabilities de módulo            | ✅  |                            |     |
 
 ¹ **a dívida em aberto do frontend.** Não há testing-library/jsdom: `nav`, `home-path`, os
 rótulos de erro e a política de senha têm teste puro (61, `npm run test`), mas casca, guards,
@@ -47,8 +49,11 @@ tem mais de um vínculo **troca de organização pelo seletor do masthead**, e o
 ser CLI e ganhou tela**: Colaborador é convidado e aceita por token em `/convites/[token]`;
 Parceiro se auto-cadastra em `/parceiros/cadastro`. Com a `backend/07`, **a dívida de teste do
 backend foi paga**: 69 testes em ~13s contra Postgres de verdade prendem o que as `02`–`06`
-registraram como dívida. **O que resta antes da fase 2 é CI** (spec seguinte, encaminhada pela
-`backend/07`) **e a infra de teste de componente do frontend** — ver a nota ¹ da tabela.
+registraram como dívida. Com a `backend/09`, **o último bloqueio do primeiro app de negócio caiu**:
+uma capability declarada por um módulo chega a um papel, então a frota (`backend/10`) já tem como
+autorizar o próprio primeiro endpoint — 86 testes. **O que resta antes da fase 2 é CI** (encaminhada
+pela `backend/07`) **e a infra de teste de componente do frontend** — ver a nota ¹ da tabela. A
+`backend/08` (listar/revogar convite, Parceiro convida) está escrita e **não** implementada.
 
 O que existe hoje:
 
@@ -90,12 +95,21 @@ O que existe hoje:
   `mount_routes` registra o módulo no `ModuleRegistry` e pendura as rotas sob
   `/api/organizacoes/{orgId}/<chave>/*` já atrás do `require_module` — prefixo e guard não são
   disciplina do módulo. `refeicoes` e `frota` existem só como **chaves registradas** em
-  `src/api/modules.py` (placeholder até as fases 2/3; o descritor vai pro módulo quando ele
-  existir).
-- **Furo conhecido, e é da fase 2:** `ModuleDescriptor.permissions` é declarativo e **não liga
-  em nada** — não existe mecanismo que ligue capability de módulo a papel (`PERMISSIONS_BY_ROLE`
-  é do `access`, e módulo não importa módulo). O primeiro app de negócio esbarra nisso no
-  primeiro endpoint; ganha spec própria. Ver `Como ficou` da `backend/05`.
+  `src/api/modules.py`, com `grants={}` (placeholder até as fases 2/3; o descritor vai pro módulo
+  quando ele existir).
+- **Capability de módulo chega a papel pelo `grants` do descritor** (`backend/09`, o furo que a
+  `05` registrou e que já está fechado). O descritor declara `grants: Mapping[papel,
+  frozenset[Permission]]` — não mais uma lista plana —, e `module_permissions_for` soma os
+  módulos registrados ao `PERMISSIONS_BY_ROLE` dentro do `SqlAlchemyMembershipReader`. Um app de
+  negócio autoriza as próprias rotas com o mesmo `require_permission(...)` do kernel, **sem uma
+  linha no `access` e sem tocar `core`**. `permissions` continua existindo como propriedade
+  derivada (o catálogo), e `<DESCRITOR>.permission("x.write")` monta a capability com prefixo.
+  Duas regras derrubam a **subida**, não o request: capability de módulo é **namespaced** pela
+  chave (`register_module`, no `core` — sem isso um módulo se daria `organizations.write`), e
+  **módulo não concede a `platform_admin`** nem a papel inexistente (`validate_module_grants()`,
+  no fim do `mount_routes`, porque só o `access` conhece `Role`). A Widelab vende módulo; ela não
+  opera a frota do cliente. **Dívida:** o `/me` e o guard somam a permissão em dois lugares
+  distintos que nada obriga a concordar — ver `Como ficou` da `backend/09`.
 - **Criar membro é convite** (`POST /api/organizacoes/{orgId}/convites` + aceite), não `POST`
   direto. A **CLI de vínculo continua**, agora só pro que o convite não alcança — o bootstrap do
   primeiro `platform_admin`, que não tem quem o convide, e o segundo membro de um Parceiro:

@@ -7,7 +7,11 @@ from src.core.security import UserId
 from src.core.tenancy import CurrentOrganization
 from src.modules.access.application.ports.unit_of_work import AccessUnitOfWorkProtocol
 from src.modules.access.domain.entities import Persona, Role
-from src.modules.access.domain.permissions import permissions_for, persona_for
+from src.modules.access.domain.permissions import (
+    module_permissions_for,
+    permissions_for,
+    persona_for,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,9 +55,15 @@ class GetMyMembershipUseCase:
         sempre o `orgId` do path, e é isso que faz o mesmo login devolver personas diferentes
         em `orgId` diferentes, sem novo login.
 
+        `permissions` soma duas fontes no vínculo (spec 09): o mapa do kernel e o que os módulos
+        registrados concedem àquele papel. É o mesmo par do `SqlAlchemyMembershipReader`, e
+        precisa ser — a casca desenha a tela a partir daqui e o guard nega a partir de lá; se as
+        duas contas divergissem, o menu prometeria o que a rota recusa.
+
         O `platform_admin` é o caso sem vínculo local: ele alcança qualquer tenant sem ter
         linha em `memberships` daquela Empresa. Aqui ele se apresenta pelo que é — papel
         `platform_admin`, persona `platform` —, em vez de virar um membro fantasma da Empresa.
+        E **sem** capability de módulo: módulo não concede à Plataforma.
 
         Args:
             user_id (UserId):
@@ -84,7 +94,9 @@ class GetMyMembershipUseCase:
                 return MyMembership(
                     role=membership.role,
                     persona=persona_for(organization.type, membership.role),
-                    permissions=permissions_for(membership.role),
+                    permissions=(
+                        permissions_for(membership.role) | module_permissions_for(membership.role)
+                    ),
                     modules=modules,
                 )
 

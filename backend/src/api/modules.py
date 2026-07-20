@@ -12,9 +12,11 @@ precisa saber o que sabe vender. Sem isto, `PUT /modulos/refeicoes` recusaria a 
 ser registrada antes de Refeições existir — que é exatamente o que "ligar um flag, sem deploy"
 promete.
 
-Note o que **não** está aqui: `permissions`. Uma capability de módulo é design do módulo
-(`catalog.write`, `invoices.approve_hr` são exemplos da spec, não decisões tomadas), e chutá-la
-agora seria fazer fase 2 num placeholder. Ver `Como ficou` na `backend/05`."""
+Note o que **não** está aqui: capability nenhuma. Os dois declaram `grants={}` — módulo que
+ainda não concede nada, que é a verdade deles até as fases 2 e 3. Uma capability de módulo é
+design do módulo (`catalog.write`, `invoices.approve_hr` são exemplos da spec, não decisões
+tomadas), e chutá-la agora seria fazer fase 2 num placeholder. O mecanismo que faz `grants`
+chegar a um papel é da `backend/09`; quem o estreia de verdade é a frota, na `backend/10`."""
 
 from src.core.modules import ModuleDescriptor, ModuleNav
 
@@ -22,7 +24,7 @@ REFEICOES = ModuleDescriptor(
     key="refeicoes",
     name="Refeições",
     personas=["company_admin", "collaborator", "partner"],
-    permissions=[],
+    grants={},
     nav=ModuleNav(label="Refeições", path="/refeicoes"),
 )
 """Fase 2 — tickets, catálogo por convênio, split e fatura. Sem `router`: só a chave existe."""
@@ -31,7 +33,7 @@ FROTA = ModuleDescriptor(
     key="frota",
     name="Frota",
     personas=["company_admin", "collaborator"],
-    permissions=[],
+    grants={},
     nav=ModuleNav(label="Frota", path="/frota"),
 )
 """Fase 3 — veículos, registro de uso, relatórios. Sem `router`: só a chave existe."""

@@ -70,6 +70,29 @@ def _upgrade_head() -> None:
     command.upgrade(config, "head")
 
 
+@pytest.fixture
+def registry_isolado() -> Iterator[None]:
+    """Salva e restaura o `ModuleRegistry` em volta de um teste.
+
+    **`_modules` é global de processo**, e não tem `clean_database` que o alcance: um teste que
+    registra um módulo falso vaza pros seguintes — fazendo o `GET /modulos` de outro teste listar
+    o `smoke`, e `module_permissions_for` somar capability que ninguém declarou. Sem esta fixture
+    a **ordem** dos testes vira parte do resultado, que é o pior tipo de suíte verde.
+
+    Mora no conftest raiz e **não** toca banco de propósito: quem a usa é tanto `unit/` (a
+    validação, que é regra pura) quanto `integration/` (o caminho por requisição), e ligá-la ao
+    Postgres faria `pytest tests/unit` exigir Docker."""
+
+    from src.core.modules import registry
+
+    salvo = dict(registry._modules)
+    try:
+        yield
+    finally:
+        registry._modules.clear()
+        registry._modules.update(salvo)
+
+
 @pytest.fixture(scope="session")
 def _container() -> Iterator[str]:
     """Sobe o Postgres descartável e devolve a URL efêmera.

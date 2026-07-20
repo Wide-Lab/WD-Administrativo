@@ -7,6 +7,7 @@ a um `PermissionReader`."""
 from collections.abc import Mapping
 
 from src.core.authz import Permission
+from src.core.modules import registered_modules
 from src.core.tenancy import OrganizationType
 from src.modules.access.domain.entities import Persona, Role
 
@@ -15,9 +16,11 @@ __all__ = [
     "PLATFORM_PERMISSIONS",
     "ROLES_BY_ORGANIZATION_TYPE",
     "is_role_valid_for",
+    "module_permissions_for",
     "permissions_for",
     "persona_for",
     "roles_for",
+    "validate_module_grants",
 ]
 
 
@@ -155,6 +158,64 @@ def permissions_for(role: Role) -> frozenset[Permission]:
     """As capabilities de kernel de um papel."""
 
     return PERMISSIONS_BY_ROLE[role]
+
+
+def module_permissions_for(role: Role) -> frozenset[Permission]:
+    """As capabilities que os **módulos registrados** concedem a um papel.
+
+    A segunda fonte do `SqlAlchemyMembershipReader`, ao lado de `permissions_for`. É o que faz um
+    app de negócio autorizar as próprias rotas com o mesmo `require_permission(...)` do kernel,
+    sem uma linha aqui e sem tocar o `core`.
+
+    **O `access` importar `src.core.modules` é legal e não é exceção:** módulo importa `core` à
+    vontade; o proibido é o contrário, e módulo importar módulo. A seta segue apontando pra
+    dentro — o `core` continua sem saber que papel existe, e a Frota continua sem saber que o
+    `access` existe.
+
+    Note que isto **não** é chamado pra parcela de plataforma: ver `validate_module_grants`."""
+
+    return frozenset().union(
+        *(descriptor.grants.get(role.value, frozenset()) for descriptor in registered_modules())
+    )
+
+
+def validate_module_grants() -> None:
+    """Confere os `grants` de todo módulo registrado. Chamada uma vez no fim de `mount_routes`,
+    depois de todos os `mount_module`.
+
+    Existe porque `ModuleRole` é `str`: um `grants={"colaborador": ...}` (em português, ou com
+    typo) não casaria com papel nenhum e concederia silenciosamente **nada** — o pior modo de
+    falha possível, 403 em produção sem ninguém saber por quê. O `core` não tem como pegar isso;
+    quem é dono de `Role` é o `access`, e é aqui que o preço é pago **na subida**.
+
+    Não é uma quinta porta no `mount_routes`: é verificação, não registro de um `Reader`. O teto
+    de quatro portas que a spec 05 declarou segue de pé.
+
+    Raises:
+        RuntimeError:
+            Se um módulo concede a um papel que não existe, ou a `platform_admin`.
+    """
+
+    papeis_validos = {role.value for role in Role}
+
+    for descriptor in registered_modules():
+        desconhecidos = sorted(set(descriptor.grants) - papeis_validos)
+        if desconhecidos:
+            raise RuntimeError(
+                f"O módulo '{descriptor.key}' concede a papéis que não existem: "
+                f"{', '.join(desconhecidos)}. Os papéis são {', '.join(sorted(papeis_validos))} — "
+                "um nome que não casa concederia nada, em silêncio."
+            )
+
+        if Role.PLATFORM_ADMIN.value in descriptor.grants:
+            raise RuntimeError(
+                f"O módulo '{descriptor.key}' concede a '{Role.PLATFORM_ADMIN.value}', e módulo "
+                "não concede à Plataforma. `require_module` não afrouxa pra ninguém, e a "
+                "organização `platform` não é `company` — ela não pode nem contratar o módulo. "
+                "Seria uma permissão barrada pelo `require_module` que vem antes dela: código "
+                "morto que parece privilégio. A Widelab vende módulo; ela não opera a frota do "
+                "cliente."
+            )
 
 
 def persona_for(organization_type: OrganizationType, role: Role) -> Persona:

@@ -9,6 +9,7 @@ from src.modules.access.adapters.db.entitlement_reader import SqlAlchemyModuleEn
 from src.modules.access.adapters.db.membership_reader import SqlAlchemyMembershipReader
 from src.modules.access.adapters.db.organization_reader import SqlAlchemyOrganizationReader
 from src.modules.access.adapters.http.routes import router as access_router
+from src.modules.access.domain.permissions import validate_module_grants
 from src.modules.auth.adapters.db.user_directory import SqlAlchemyUserDirectory
 from src.modules.auth.adapters.db.user_reader import SqlAlchemyUserReader
 from src.modules.auth.adapters.http.routes import router as auth_router
@@ -51,3 +52,9 @@ def mount_routes(api: APIRouter) -> None:
 
     mount_module(api, REFEICOES)
     mount_module(api, FROTA)
+
+    # Depois de **todos** os `mount_module`, e uma vez só: confere que nenhum módulo concede a um
+    # papel que não existe nem à Plataforma (spec 09). Não é uma quinta porta do `access` — é
+    # verificação, não registro de um `Reader`, e o teto de quatro linhas segue de pé. O `core` já
+    # cobrou o namespace em `register_module`; o papel só o `access` enxerga, porque `Role` é dele.
+    validate_module_grants()

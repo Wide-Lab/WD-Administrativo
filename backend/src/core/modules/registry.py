@@ -4,7 +4,7 @@ Registro não é entitlement. Estar aqui significa que o código do módulo exis
 pode vendê-lo; quem o enxerga é decidido por `module_entitlements`, tenant a tenant
 (`entitlements.py`). Um módulo registrado nunca aparece pra um tenant sem entitlement."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
 from fastapi import APIRouter
@@ -22,6 +22,16 @@ fora."""
 type ModulePersona = str
 """A persona que um módulo atende. `str` pelo mesmo motivo que `ModuleKey`: `Persona` é enum do
 `access`, e o `core` não importa módulo."""
+
+type ModuleRole = str
+"""O papel a que o módulo concede uma capability. `str` pelo mesmo motivo que `ModulePersona`:
+`Role` é enum do `access`, e o `core` não importa módulo.
+
+O preço é que um papel inexistente (`"colaborador"`, em português, ou com typo) não casaria com
+papel nenhum e concederia silenciosamente **nada** — 403 em produção sem ninguém saber por quê.
+Quem cobra esse preço na subida é `validate_module_grants()`, do `access`, que é o dono de
+`Role`. Divisão de trabalho de sempre: o `core` impede o que enxerga (o namespace, logo abaixo),
+o `access` impede o que só ele enxerga (o papel)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,10 +56,21 @@ class ModuleDescriptor:
     key: ModuleKey
     name: str
     personas: Sequence[ModulePersona]
-    permissions: Sequence[Permission]
-    """As capabilities que o módulo declara. O kernel declara as *da plataforma*
-    (`access/domain/permissions.py`); estas são as do módulo, e ninguém mais precisa
-    conhecê-las."""
+
+    grants: Mapping[ModuleRole, frozenset[Permission]]
+    """Papel → as capabilities que este módulo lhe concede.
+
+    É **concessão**, não catálogo: o `PermissionReader` do `access` soma isto ao mapa do kernel
+    (`PERMISSIONS_BY_ROLE`), e é o que faz um `require_permission("frota.vehicles.write")` numa
+    rota de módulo chegar a um papel sem nenhuma linha no `access`. Um mapa vazio é módulo que
+    ainda não declara nada.
+
+    Chamava-se `permissions` e era uma lista plana (spec 05), que não ligava em nada. O nome
+    mudou junto com o significado de propósito: manter `permissions` com semântica nova faria
+    toda leitura de código da 05 mentir. O catálogo plano continua disponível, derivado, na
+    propriedade `permissions` abaixo.
+
+    Toda capability aqui tem que começar com `<chave>.` — ver `register_module`."""
 
     nav: ModuleNav
 
@@ -59,8 +80,58 @@ class ModuleDescriptor:
     entitlement dele já liga, mas ele ainda não tem endpoint — o caso de `refeicoes` e `frota`
     até as fases 2 e 3."""
 
+    @property
+    def permissions(self) -> frozenset[Permission]:
+        """O catálogo: toda capability que este módulo declara, sem quem a recebe."""
+
+        return frozenset().union(*self.grants.values()) if self.grants else frozenset()
+
+    def permission(self, suffix: str) -> Permission:
+        """`FROTA.permission("vehicles.write")` → `"frota.vehicles.write"`.
+
+        Existe pra ninguém precisar repetir a chave à mão e errar o namespace que
+        `register_module` cobra."""
+
+        return f"{self.key}.{suffix}"
+
 
 _modules: dict[ModuleKey, ModuleDescriptor] = {}
+
+
+def _assert_grants_are_namespaced(descriptor: ModuleDescriptor) -> None:
+    """Toda capability de `grants` começa com `<chave>.`, ou o módulo não sobe.
+
+    Uma regra, três problemas:
+
+    1. **Escalada de privilégio.** O mecanismo desta camada *soma* as concessões do módulo ao
+       mapa do kernel. Sem a regra, um descritor com `grants={"collaborator":
+       {"organizations.write"}}` daria a um Colaborador qualquer o poder de provisionar tenant —
+       por malícia ou por copiar-colar. Com ela o espaço de nomes do kernel é inalcançável **por
+       construção**: `organizations.write` não começa com `frota.`.
+    2. **Colisão entre módulos.** Frota e Refeições vão os dois querer `reports.read`. Sem
+       prefixo, quem registrasse por último venceria, e um `manager` de frota ganharia relatório
+       de refeições de brinde.
+    3. **Legibilidade no ponto de uso.** `require_permission("frota.vehicles.write")` diz de quem
+       é a regra sem abrir o descritor.
+
+    Mora aqui, e não em `mount_module`, porque **registrar** é o ato que põe o descritor no mapa
+    que o `PermissionReader` vai somar: é neste ponto que a invariante tem que valer, inclusive
+    pra quem chame `register_module` direto."""
+
+    prefixo = f"{descriptor.key}."
+    fora = sorted(
+        permission
+        for permissions in descriptor.grants.values()
+        for permission in permissions
+        if not permission.startswith(prefixo)
+    )
+    if fora:
+        raise RuntimeError(
+            f"O módulo '{descriptor.key}' concede capabilities fora do próprio namespace: "
+            f"{', '.join(fora)}. Toda capability de um módulo começa com '{prefixo}' — "
+            f"use {descriptor.key.upper()}.permission('...') pra montá-la. Sem isso, um módulo "
+            "poderia conceder permissão de kernel (escalada de privilégio) ou colidir com outro."
+        )
 
 
 def register_module(descriptor: ModuleDescriptor) -> None:
@@ -68,7 +139,12 @@ def register_module(descriptor: ModuleDescriptor) -> None:
 
     Registrar duas vezes o mesmo descritor é inofensivo (a subida pode se repetir num
     processo); registrar **descritores diferentes** sob a mesma chave é erro de programação e
-    estoura — a chave é a identidade do módulo em rota, entitlement e navegação."""
+    estoura — a chave é a identidade do módulo em rota, entitlement e navegação.
+
+    Recusa também quem declara `grants` fora do próprio namespace: a app não sobe. Um container
+    que sobe com autorização errada é pior do que um container que não sobe."""
+
+    _assert_grants_are_namespaced(descriptor)
 
     registered = _modules.get(descriptor.key)
     if registered is not None and registered != descriptor:
