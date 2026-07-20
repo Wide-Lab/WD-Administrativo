@@ -27,17 +27,21 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 07  | testes automatizados              | ✅  | —¹                         |     |
 | 08  | gestão de convites (`access`)     | ⬜  |                            |     |
 | 09  | capabilities de módulo            | ✅  |                            |     |
+| 10  | **frota** (1º app de negócio)     | ✅  | —²                         |     |
 
 ¹ **a dívida em aberto do frontend.** Não há testing-library/jsdom: `nav`, `home-path`, os
 rótulos de erro e a política de senha têm teste puro (61, `npm run test`), mas casca, guards,
 `Can`, seletor e os **dois formulários de onboarding** foram verificados só a olho, no browser.
 É a candidata óbvia a spec, junto com a CI que a `backend/07` deixou encaminhada.
 
+² as **telas da frota** são `frontend/07`, ainda não escrita. Hoje `/frota` é a rota-placeholder
+atrás do `ModuleGuard`; o backend do módulo está completo e todo observável por requisição.
+
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
 `Fora de escopo` / `Critérios de aceite`).
 
-## Estado atual — fase 1 fechada; o que falta é CI e teste de componente
+## Estado atual — fase 1 fechada e o 1º app de negócio de pé; falta CI e teste de componente
 
 Backend `01`–`07` e frontend `01`–`06` estão implementados: dá pra subir a stack, logar,
 provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel, **vender módulo
@@ -50,10 +54,21 @@ ser CLI e ganhou tela**: Colaborador é convidado e aceita por token em `/convit
 Parceiro se auto-cadastra em `/parceiros/cadastro`. Com a `backend/07`, **a dívida de teste do
 backend foi paga**: 69 testes em ~13s contra Postgres de verdade prendem o que as `02`–`06`
 registraram como dívida. Com a `backend/09`, **o último bloqueio do primeiro app de negócio caiu**:
-uma capability declarada por um módulo chega a um papel, então a frota (`backend/10`) já tem como
-autorizar o próprio primeiro endpoint — 86 testes. **O que resta antes da fase 2 é CI** (encaminhada
-pela `backend/07`) **e a infra de teste de componente do frontend** — ver a nota ¹ da tabela. A
+uma capability declarada por um módulo chega a um papel — 86 testes. E com a `backend/10`,
+**o primeiro app de negócio existe**: a Frota tem schema (migration `0006`), 14 rotas sob
+`/api/organizacoes/{orgId}/frota/*` e sete capabilities próprias, importa **só** `src.core`, e
+`src/core` não mudou em nenhuma linha — 216 testes. Um `manager` cadastra veículo e lança viagem
+porque o `grants` do descritor chega até ele, sem uma linha em `PERMISSIONS_BY_ROLE`. **O que
+resta antes da fase 2 é CI** (encaminhada pela `backend/07`) **e a infra de teste de componente do
+frontend** — ver a nota ¹ da tabela; e as **telas da frota** (`frontend/07`), nota ². A
 `backend/08` (listar/revogar convite, Parceiro convida) está escrita e **não** implementada.
+
+**Duas dívidas que a `backend/10` descobriu e não pôde pagar:** `PageResponse`, `get_page_params`
+e o helper `_pg_enum` moram no `access`, um app de negócio não pode importá-los, e o critério da
+spec proibia promovê-los ao `core` — então a frota tem cópias, e Refeições vai copiar de novo
+(promovê-los é spec própria). E o **`alembic check` nunca esteve limpo**: FK que cruza módulo vive
+só na migration desde a `0003`, e ele propõe dropar seis delas — a spec de CI vai precisar de
+allowlist. Isso contradiz o `Como ficou` da `09`, que afirmava o contrário.
 
 O que existe hoje:
 
@@ -94,9 +109,12 @@ O que existe hoje:
 - **Módulo de negócio pluga com uma linha:** `mount_module(api, <ModuleDescriptor>)` em
   `mount_routes` registra o módulo no `ModuleRegistry` e pendura as rotas sob
   `/api/organizacoes/{orgId}/<chave>/*` já atrás do `require_module` — prefixo e guard não são
-  disciplina do módulo. `refeicoes` e `frota` existem só como **chaves registradas** em
-  `src/api/modules.py`, com `grants={}` (placeholder até as fases 2/3; o descritor vai pro módulo
-  quando ele existir).
+  disciplina do módulo. `refeicoes` ainda é só uma **chave registrada** em `src/api/modules.py`,
+  com `grants={}` (placeholder até a fase 2). `frota` **já saiu de lá**: o descritor vive em
+  `src/modules/frota/module.py`, com router e capabilities de verdade. Na prática a "uma linha"
+  são **três pontos de contato** — a linha do `mount_module`, o import dos models em
+  `migrations/env.py` e a saída do placeholder —, nenhum deles porta de kernel. Ver `Como ficou`
+  da `10`.
 - **Capability de módulo chega a papel pelo `grants` do descritor** (`backend/09`, o furo que a
   `05` registrou e que já está fechado). O descritor declara `grants: Mapping[papel,
   frozenset[Permission]]` — não mais uma lista plana —, e `module_permissions_for` soma os
@@ -155,11 +173,37 @@ O que existe hoje:
   `alembic upgrade head` e dá `TRUNCATE` + reseed da org `platform` entre cada teste — `TRUNCATE`
   e não rollback, porque é o que deixa testar a **atomicidade** do auto-cadastro de Parceiro. A
   fixture que decide a ergonomia é `como(role=…, org=…)`: login de verdade, cliente com cookie.
+  **216 testes** depois da `backend/10` (86 + 130 da frota). Duas fixtures de registry, e a
+  diferença importa: `registry_isolado` salva e restaura, `registry_vazio` **também limpa** — quem
+  afirma igualdade exata sobre `module_permissions_for(...)` precisa da segunda, porque a frota
+  agora concede de verdade e entraria na soma.
   **`src.main` nunca é importado no topo de um módulo de teste** — ele lê `get_config()` no
   import, e isso congelaria a config antes de o harness apontar pro container. Ver `backend/07`.
 - `docker-compose.yml` + `nginx/` — stack completa (Postgres, backend, frontend, nginx).
-- Nenhum app de negócio existe ainda — `refeicoes` e `frota` são chave registrada no backend e
-  rota-placeholder no frontend, nada mais. Não assuma — confirme lendo o diretório.
+- `src/modules/frota/` — **o primeiro app de negócio** (`backend/10`), em camadas e importando
+  **só** `src.core`. `vehicles`, `drivers` e `vehicle_usages` (migration `0006`), todas com FK
+  composta contra `organizations(id, type)` — só Empresa tem frota. Rotas: CRUD de veículo e
+  condutor (**sem `DELETE`**: desativar é `PATCH status=inactive`, porque o histórico é o
+  produto), `GET`/`POST /usos`, `PATCH`/`DELETE /usos/{id}`, `POST /usos/{id}/encerrar` e
+  `GET /relatorios/quilometragem`. Sete capabilities namespaced (`frota.vehicles.*`,
+  `frota.drivers.*`, `frota.usages.read|write|write_own`), declaradas em
+  `frota/domain/permissions.py` e concedidas a `company_admin`, `manager` e `collaborator`.
+- **Na frota, lançamento retroativo é o caso normal, e isso desenhou o schema.** `started_at` e
+  `ended_at` são **digitados** — não existe rota "iniciar viagem agora", e data futura é 422 da
+  aplicação (um `CHECK` com `now()` é impossível no Postgres). A peça central é
+  `ex_vehicle_usages_no_overlap`, uma constraint de **exclusão** (`EXCLUDE USING gist`, exige
+  `btree_gist`): um veículo não pode ter duas viagens com período sobreposto, e como
+  `tstzrange(started_at, NULL)` é sem limite superior, ela entrega de graça "um veículo, uma
+  viagem aberta". O range é `[)`, então devolver o carro às 12h e outro pegá-lo às 12h **não**
+  colide. Sobreposição é 409 traduzido de `IntegrityError`, nunca um `SELECT` antes.
+- **Condutor é entidade própria, não `membership`** — o motorista terceirizado dirige e nunca
+  loga. `drivers.user_id` é o vínculo opcional com quem tem login, e **não tem FK nenhuma, nem na
+  migration**: é o primeiro teste do seam de extração, e uma FK daqui pra `users` é o que tornaria
+  `frota` não-destacável. Quem tem `frota.usages.write_own` age só sobre o uso cujo `driver_id` é
+  o seu; `GET /usos` é a **única rota do módulo sem `require_permission`** — a capability decide o
+  *escopo* do que volta, não se a porta abre.
+- `refeicoes` segue sem existir — chave registrada no backend e rota-placeholder no frontend,
+  nada mais. Não assuma — confirme lendo o diretório.
 
 ## Arquitetura (o retrato grande, que exige ler várias specs)
 
@@ -226,7 +270,11 @@ O que existe hoje:
 upgrade head`: as invariantes deste backend moram no banco, e mock ou SQLite ficariam verdes
   testando nada. Ver `backend/07-testes.md`.
 - **Schema só via Alembic**, sem `create_all`. Nomes de tabela `snake_case` no plural, **sem**
-  prefixo `T0xx`. E-mail é `CITEXT`; senha é **Argon2id**, nunca bcrypt.
+  prefixo `T0xx`. E-mail é `CITEXT`; senha é **Argon2id**, nunca bcrypt. Model de módulo novo
+  entra em `migrations/env.py`, senão o `--autogenerate` propõe dropar as tabelas dele. **FK que
+  cruza módulo vive só na migration** (`memberships.user_id`, `module_entitlements.granted_by`,
+  as três `fk_*_organization` da frota) — declará-la no model faria módulo importar módulo. Como
+  consequência o **`alembic check` não é verde e não será**: ele propõe dropar essas seis. Recuse.
 - **Rotas em português; tenant no path.** `/api/me*` é o usuário global; `/api/organizacoes/{orgId}/me`
   é "eu nesta organização". Nomes de tabela, coluna e valores de enum seguem em **inglês**.
 - **Organização tem um tipo só** (`platform`/`company`/`partner`), definido na criação e

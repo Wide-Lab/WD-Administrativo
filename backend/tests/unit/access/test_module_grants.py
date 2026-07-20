@@ -29,7 +29,8 @@ def _registrar(key: str, grants: dict[str, frozenset[str]]) -> ModuleDescriptor:
 
 def test_grants_validos_passam_calados(registry_isolado: None) -> None:
     """Com todos os descritores válidos, `validate_module_grants` é no-op — inclusive com os
-    `refeicoes` e `frota` reais, que declaram `grants={}`."""
+    reais: `refeicoes`, que declara `grants={}`, e `frota`, que desde a spec 10 concede de
+    verdade a três papéis."""
 
     _registrar("smoke", {"manager": frozenset({"smoke.reports.read"})})
 
@@ -64,9 +65,14 @@ def test_modulo_nao_concede_a_platform_admin(registry_isolado: None) -> None:
         validate_module_grants()
 
 
-def test_module_permissions_for_soma_os_descritores(registry_isolado: None) -> None:
+def test_module_permissions_for_soma_os_descritores(registry_vazio: None) -> None:
     """A segunda fonte do `PermissionReader`: dois módulos concedendo ao mesmo papel se somam,
-    e cada um só entrega o que declarou."""
+    e cada um só entrega o que declarou.
+
+    Usa `registry_vazio` e não `registry_isolado` **desde a spec 10**: a `frota` real concede sete
+    capabilities ao `manager`, e a igualdade exata abaixo passaria a somá-las. Antes disso o teste
+    passava porque todo módulo real declarava `grants={}` — ou seja, por acidente do repo estar
+    vazio, não por isolamento de verdade."""
 
     _registrar("smoke", {"manager": frozenset({"smoke.reports.read"})})
     _registrar("outro", {"manager": frozenset({"outro.trips.write"})})

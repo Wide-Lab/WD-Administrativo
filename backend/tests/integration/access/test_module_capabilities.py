@@ -205,14 +205,21 @@ async def test_platform_admin_nao_recebe_capability_de_modulo(
     assert "smoke.reports.read" not in permissions
 
 
-async def test_refeicoes_e_frota_seguem_vendaveis_sem_conceder_nada(
+async def test_refeicoes_e_frota_seguem_vendaveis(
     session: AsyncSession,
     como: Como,
 ) -> None:
     """O critério 8: trocar `permissions=[]` por `grants={}` não mexeu no que já funcionava.
 
     Sem `smoke_registrado` de propósito — este é o catálogo **real** do app, e é o teste que a
-    fixture de isolamento protege: sem ela, o `smoke` de outro teste apareceria aqui."""
+    fixture de isolamento protege: sem ela, o `smoke` de outro teste apareceria aqui.
+
+    **Metade deste teste deixou de valer na spec 10, e a mudança é o ponto.** Ele nasceu
+    afirmando que `FROTA.permissions == frozenset()` — verdade enquanto a frota era um
+    placeholder em `src/api/modules.py`. Hoje ela é um módulo de verdade, com sete capabilities e
+    descritor próprio em `src/modules/frota/module.py`, e é exatamente isso que a `09` existia
+    pra destravar. O que o critério 8 afirmava de fato — *o mecanismo novo não quebrou a venda* —
+    segue de pé e continua testado aqui; quem ainda declara `grants={}` é só `refeicoes`."""
 
     acme = await make_company(session, name="Acme")
     widelab = await como(role=Role.PLATFORM_ADMIN)
@@ -227,7 +234,8 @@ async def test_refeicoes_e_frota_seguem_vendaveis_sem_conceder_nada(
     assert {"refeicoes", "frota"} <= chaves
     assert "smoke" not in chaves
 
-    from src.api.modules import FROTA, REFEICOES
+    from src.api.modules import REFEICOES
+    from src.modules.frota.module import FROTA
 
     assert REFEICOES.permissions == frozenset()
-    assert FROTA.permissions == frozenset()
+    assert FROTA.permissions != frozenset()

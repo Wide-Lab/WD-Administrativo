@@ -167,6 +167,18 @@ pra outro `orgId`, e o cache do TanStack se separa sozinho porque as chaves o in
 `05` e `06` registraram, e que a `06` agravou: os dois formulários de onboarding são hoje os
 maiores clientes sem teste do projeto. Depois disso, a fase 2.
 
+**A fase 3 começou antes da 2, e de propósito.** A `backend/10` entregou a **Frota** — o primeiro
+app de negócio do superapp, e a prova de que o desenho das `05`/`09` aguenta: `src/modules/frota/`
+tem schema, 14 rotas e sete capabilities, importa **só** `src.core`, e o `src/core` não mudou em
+nenhuma linha. Um `manager` — papel que sai de `PERMISSIONS_BY_ROLE` com `frozenset()` vazio —
+cadastra veículo e lança viagem porque o `grants` do descritor chega até ele. Falta a `frontend/07`
+com as telas. **O que a frota cobrou de dívida foi a fronteira**: `PageResponse`,
+`get_page_params` e `_pg_enum` moram no `access`, um app de negócio não pode importá-los e o
+critério da spec proibia promovê-los ao `core` — então estão duplicados, e Refeições vai duplicar
+de novo. Promovê-los é spec própria. E descobriu-se que o **`alembic check` nunca esteve limpo**:
+as FKs que cruzam módulo vivem só na migration desde a `0003`, e ele propõe dropar seis delas —
+o que a spec de CI vai ter que tratar com allowlist.
+
 **A `/parceiros/cadastro` não tem link em lugar nenhum.** A `frontend/06` a entregou funcionando,
 mas nenhuma tela aponta pra ela — chega-se por URL direta. O convite, esse, chega por e-mail e o
 link já funciona. É decisão de produto (o Parceiro deve se achar sozinho?) e vira spec.
@@ -202,7 +214,11 @@ sobrou dele é menor e está no `Como ficou` da `09` — o `/me` e o guard somam
 lugares que nada obriga a concordar.
 
 O faseamento é desenhado pra que os apps (fases 2+) **não toquem no núcleo**: cada um entra
-como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement.
+como `modules/<app>` no backend + um route group no frontend, ligado por um entitlement. **A
+`backend/10` provou a metade backend disso na prática** — a Frota entrou inteira sem uma linha
+de mudança em `src/core` —, com a ressalva de que "uma linha em `mount_routes`" virou três
+pontos de contato: a linha do `mount_module`, o import dos models em `migrations/env.py` e a
+saída do placeholder de `src/api/modules.py`. Nenhum deles é porta de kernel.
 
 ## Índice de specs
 
@@ -223,7 +239,7 @@ Backend:
 7. ✅ `backend/07-testes.md` — `pytest` + Postgres efêmero (testcontainers), a suíte que prende as invariantes que as `03`–`06` registraram como dívida, e a regra que faz teste deixar de ser opcional no backend. **Pré-requisito da fase 2, pago:** 69 testes, ~13s. Faltam CI (spec seguinte) e `mount_module`, só testável quando o primeiro app de negócio existir — ver `Como ficou`.
 8. ⬜ `backend/08-gestao-de-convites.md` — listar e revogar convite, e dar ao `partner_admin` o direito de convidar: os três buracos que a `06` deixou de propósito. Sem migration (o enum já tem `revoked`, permissão é código); a tela de gestão e o link pra `/parceiros/cadastro` são spec de frontend própria.
 9. ✅ `backend/09-capabilities-de-modulo.md` — o mecanismo que liga capability declarada por um módulo a papel: o descritor declara `grants` (papel→capabilities) e o `PermissionReader` soma os descritores do registry ao mapa do kernel. Sem migration. **O furo que a `05` registrou, fechado — a `backend/10` está destravada.** Capability de módulo é namespaced pela chave e módulo não concede a `platform_admin`; as duas violações derrubam a subida. 86 testes. Fica de dívida a soma duplicada entre o reader e o `/me` — ver `Como ficou`.
-10. ⬜ `backend/10-frota.md` — o **primeiro app de negócio**: veículos, condutores, registro de uso (retroativo) e relatório de quilometragem. Migration `0006`, com a constraint de exclusão que impede sobreposição de período no mesmo veículo. As telas são spec de frontend própria.
+10. ✅ `backend/10-frota.md` — o **primeiro app de negócio**: veículos, condutores, registro de uso (retroativo) e relatório de quilometragem. Migration `0006`, com a constraint de exclusão que impede sobreposição de período no mesmo veículo. **O contrato de plugagem das `05`/`09` provado num módulo de verdade: zero mudança em `src/core`.** 216 testes. Ficam de dívida a duplicação de `PageResponse`/`get_page_params`/`_pg_enum` (a fronteira cobrou) e o `alembic check`, que **já não estava limpo antes** — ver `Como ficou`. As telas são spec de frontend própria.
 
 Frontend:
 

@@ -11,7 +11,7 @@ Note que nenhuma delas mente o `organization_type` de um vínculo: quem quiser m
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +33,10 @@ from src.modules.access.domain.entities import (
 )
 from src.modules.auth.adapters.db.models import User as UserModel
 from src.modules.auth.domain.entities import UserStatus
+from src.modules.frota.adapters.db.models import Driver as DriverModel
+from src.modules.frota.adapters.db.models import Vehicle as VehicleModel
+from src.modules.frota.adapters.db.models import VehicleUsage as VehicleUsageModel
+from src.modules.frota.domain.entities import DriverStatus, VehicleStatus
 
 DEFAULT_PASSWORD = "senha-de-teste-123"
 """A senha de quem a factory cria. Oito caracteres ou mais — a política do `PUT /api/me/password`
@@ -217,6 +221,106 @@ async def make_entitlement(
     await session.commit()
 
     return entitlement
+
+
+def unique_plate() -> str:
+    """Uma placa que não colide com a de outro teste — o `UNIQUE (organization_id, plate)` é
+    justamente o que vários deles põem à prova."""
+
+    return f"T{uuid.uuid4().hex[:6].upper()}"
+
+
+async def make_vehicle(
+    session: AsyncSession,
+    *,
+    organization: OrganizationModel,
+    plate: str | None = None,
+    brand: str = "Fiat",
+    model: str = "Strada",
+    model_year: int | None = 2022,
+    initial_odometer: int = 0,
+    status: VehicleStatus = VehicleStatus.ACTIVE,
+) -> VehicleModel:
+    """Um veículo da frota. Note que a factory **não** normaliza a placa: quem a normaliza é a
+    aplicação, e um teste que escreva por aqui está montando cenário, não exercitando a regra."""
+
+    vehicle = VehicleModel(
+        organization_id=organization.id,
+        plate=plate or unique_plate(),
+        brand=brand,
+        model=model,
+        model_year=model_year,
+        initial_odometer=initial_odometer,
+        status=status,
+    )
+    session.add(vehicle)
+    await session.commit()
+
+    return vehicle
+
+
+async def make_driver(
+    session: AsyncSession,
+    *,
+    organization: OrganizationModel,
+    name: str | None = None,
+    user_id: uuid.UUID | None = None,
+    license_number: str | None = None,
+    license_category: str | None = None,
+    license_expires_at: date | None = None,
+    status: DriverStatus = DriverStatus.ACTIVE,
+) -> DriverModel:
+    """Um condutor. `user_id=None` é o motorista terceirizado, que dirige e nunca loga — o caso
+    comum; passar um `user_id` é o que habilita o `frota.usages.write_own` daquela pessoa."""
+
+    driver = DriverModel(
+        organization_id=organization.id,
+        name=name or f"Condutor {uuid.uuid4().hex[:6]}",
+        user_id=user_id,
+        license_number=license_number,
+        license_category=license_category,
+        license_expires_at=license_expires_at,
+        status=status,
+    )
+    session.add(driver)
+    await session.commit()
+
+    return driver
+
+
+async def make_usage(
+    session: AsyncSession,
+    *,
+    organization: OrganizationModel,
+    vehicle: VehicleModel,
+    driver: DriverModel,
+    created_by: uuid.UUID,
+    started_at: datetime | None = None,
+    ended_at: datetime | None = None,
+    start_odometer: int = 1000,
+    end_odometer: int | None = None,
+    purpose: str | None = None,
+    notes: str | None = None,
+) -> VehicleUsageModel:
+    """Uma viagem registrada. Sem `ended_at`, nasce **aberta** — e uma viagem aberta colide com
+    qualquer outra do mesmo veículo, pela constraint de exclusão."""
+
+    usage = VehicleUsageModel(
+        organization_id=organization.id,
+        vehicle_id=vehicle.id,
+        driver_id=driver.id,
+        started_at=started_at or (datetime.now(UTC) - timedelta(days=1)),
+        ended_at=ended_at,
+        start_odometer=start_odometer,
+        end_odometer=end_odometer,
+        purpose=purpose,
+        notes=notes,
+        created_by=created_by,
+    )
+    session.add(usage)
+    await session.commit()
+
+    return usage
 
 
 async def make_invitation(

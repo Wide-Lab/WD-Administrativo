@@ -93,6 +93,22 @@ def registry_isolado() -> Iterator[None]:
         registry._modules.update(salvo)
 
 
+@pytest.fixture
+def registry_vazio(registry_isolado: None) -> Iterator[None]:
+    """Como `registry_isolado`, mas o teste começa com o registry **vazio**.
+
+    Existe porque `registry_isolado` salva e restaura, mas não limpa — e isso basta enquanto os
+    módulos reais não concedem nada. **A spec 10 acabou com essa condição**: a `frota` passou a
+    declarar sete capabilities de verdade, e um teste que afirme `module_permissions_for(...) ==
+    {só o que eu registrei}` passou a somar as dela por tabela. Quem precisa de igualdade exata,
+    e não de `>=`, pede esta fixture; quem quer o catálogo real do app segue com a outra."""
+
+    from src.core.modules import registry
+
+    registry._modules.clear()
+    yield
+
+
 @pytest.fixture(scope="session")
 def _container() -> Iterator[str]:
     """Sobe o Postgres descartável e devolve a URL efêmera.

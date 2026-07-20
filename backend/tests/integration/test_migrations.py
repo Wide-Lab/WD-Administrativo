@@ -15,6 +15,11 @@ _TABELAS_ESPERADAS = {
     "memberships",
     "module_entitlements",
     "invitations",
+    # Do primeiro app de negócio (spec 10). Elas entram aqui e não num arquivo do `frota` porque
+    # o que se afirma é sobre a **cadeia de migrations**, que é uma só pro repo inteiro.
+    "vehicles",
+    "drivers",
+    "vehicle_usages",
 }
 
 
@@ -35,7 +40,32 @@ async def test_upgrade_head_sobe_do_zero_num_banco_vazio(session: AsyncSession) 
 async def test_o_banco_esta_na_ultima_migration(session: AsyncSession) -> None:
     result = await session.execute(sa.text("SELECT version_num FROM alembic_version"))
 
-    assert result.scalars().one() == "0005_invitations"
+    assert result.scalars().one() == "0006_frota"
+
+
+async def test_a_extensao_btree_gist_existe(session: AsyncSession) -> None:
+    """A `0006` a cria, e sem ela a constraint de exclusão de `vehicle_usages` não existiria —
+    `vehicle_id WITH =` é igualdade de uuid num índice gist, que só o btree_gist ensina."""
+
+    result = await session.execute(
+        sa.text("SELECT extname FROM pg_extension WHERE extname = 'btree_gist'")
+    )
+
+    assert result.scalars().one_or_none() == "btree_gist"
+
+
+async def test_a_constraint_de_exclusao_de_vehicle_usages_existe(session: AsyncSession) -> None:
+    """A peça central da spec 10, conferida no catálogo do Postgres e não pelo comportamento:
+    é o que impede um veículo de estar em dois lugares ao mesmo tempo."""
+
+    result = await session.execute(
+        sa.text(
+            "SELECT conname FROM pg_constraint "
+            "WHERE conrelid = 'vehicle_usages'::regclass AND contype = 'x'"
+        )
+    )
+
+    assert "ex_vehicle_usages_no_overlap" in set(result.scalars().all())
 
 
 async def test_a_organizacao_platform_nasce_semeada(session: AsyncSession) -> None:

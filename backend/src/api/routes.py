@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.api.modules import FROTA, REFEICOES
+from src.api.modules import REFEICOES
 from src.core.authz import set_permission_reader_factory
 from src.core.modules import mount_module, set_module_entitlement_reader_factory
 from src.core.security import set_user_directory_factory, set_user_reader_factory
@@ -13,6 +13,7 @@ from src.modules.access.domain.permissions import validate_module_grants
 from src.modules.auth.adapters.db.user_directory import SqlAlchemyUserDirectory
 from src.modules.auth.adapters.db.user_reader import SqlAlchemyUserReader
 from src.modules.auth.adapters.http.routes import router as auth_router
+from src.modules.frota.module import FROTA
 
 
 def mount_routes(api: APIRouter) -> None:
@@ -35,7 +36,9 @@ def mount_routes(api: APIRouter) -> None:
     `UserReader` como "o único caso em que um módulo tem duas linhas"; a 06 mostrou que faltava
     o outro lado do verbo, porque o onboarding é do `access` e a tabela `users` é do `auth`.
     Um app de negócio segue com a sua linha única (`refeicoes` e `frota`, abaixo, já são só
-    isso)."""
+    isso) — e a `frota` é a **prova** disso desde a spec 10: ela virou um módulo de verdade, com
+    schema, rotas e capabilities, e o que mudou aqui foi a origem do import. Nem uma linha a
+    mais, nem um `set_*_factory`."""
 
     @api.get("/health")
     async def health() -> dict[str, str]:
