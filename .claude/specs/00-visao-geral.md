@@ -168,13 +168,19 @@ pra outro `orgId`, e o cache do TanStack se separa sozinho porque as chaves o in
 maiores clientes sem teste do projeto.
 
 **As duas foram adiadas de propósito em 2026-07-20, e as telas vêm antes.** A decisão é do Kauan
-e o motivo é o desequilíbrio que a `backend/10` deixou visível: o **backend está duas fases à
-frente do frontend**, que consome **7 das 37 rotas**. Nada em `membros`, `convenios`, `modulos`,
-gestão de convite ou frota tem tela — a frota inteira, 14 rotas testadas, só se usa por `curl`.
-CI e teste de componente protegem código que existe; o que falta é código que não existe. As três
-specs de tela (`frontend/07`–`09`) vêm primeiro, e cada uma carrega a regra de que **o que é
-função pura ganha teste na própria entrega**, pra a dívida parar de crescer sem rede enquanto a
-infra não chega.
+e o motivo era o desequilíbrio que a `backend/10` deixou visível: o backend estava duas fases à
+frente do frontend, que consumia **7 das 37 rotas**. CI e teste de componente protegem código que
+existe; o que faltava era código que não existia. As três specs de tela (`frontend/07`–`09`)
+vieram primeiro, cada uma carregando a regra de que **o que é função pura ganha teste na própria
+entrega**, pra a dívida parar de crescer sem rede enquanto a infra não chega.
+
+**Em 2026-07-21 as `07` e `08` foram implementadas** — em duas worktrees em paralelo, com um único
+conflito no merge (`components/ui/table.tsx`, criado pelas duas). A frota e a gestão da organização
+têm tela, sobrou a `09`, e a suíte pura foi de **61 para 173 testes**. A regra da função pura
+segurou 112 deles, então ela funcionou. Mas a dívida de componente **cresceu como previsto**: seis
+telas novas de formulário sem cobertura de DOM, e as duas entregas nem chegaram a subir a stack —
+foram escritas contra os contratos lidos no código do backend e checadas por `build`. Quem
+escrever a spec de teste de componente começa pelo formulário de viagem da `frontend/07`.
 
 **A fase 3 começou antes da 2, e de propósito.** A `backend/10` entregou a **Frota** — o primeiro
 app de negócio do superapp, e a prova de que o desenho das `05`/`09` aguenta: `src/modules/frota/`
@@ -197,9 +203,10 @@ ainda ocupa o próprio e-mail pro cadastro combinado que viria depois. O auto-ca
 quem já foi chamado, não porta de descoberta. **A ausência do link é a decisão** — não a
 reintroduza por ergonomia.
 
-**Escrever as specs de tela (`frontend/07`–`09`, 2026-07-20) achou três furos de backend**, todos
-por olhar um contrato do lado de quem o consome — que é o que uma spec de tela faz e nenhuma spec
-de backend tinha feito:
+**As telas acharam quatro furos de backend**, todos por olhar um contrato do lado de quem o
+consome — que é o que uma tela faz e nenhuma spec de backend tinha feito. Os três primeiros
+saíram de **escrever** as specs (`frontend/07`–`09`, 2026-07-20); o quarto saiu de
+**implementá-las** (2026-07-21), o que é a diferença entre prever o contrato e usá-lo:
 
 1. **`PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do último administrador.** Um
    `company_admin` se rebaixa a `collaborator` e a organização fica sem quem a administre, sem
@@ -217,6 +224,14 @@ de backend tinha feito:
    `frontend/09`**.
 3. **Não há rota pra uma Empresa descobrir Parceiros** — `GET /organizacoes` é de
    `platform_admin`, então criar convênio começa por colar um UUID.
+4. **`MemberResponse` não devolve nome nem e-mail, e nenhuma rota traduz `user_id` em pessoa.**
+   Achado ao implementar, em 2026-07-21. A lista de membros mostra UUID e o select de condutor da
+   frota mostra `papel · <8 caracteres>`; pior, o e-mail de quem foi convidado **aparece** na aba
+   Convites e **some** quando a pessoa aceita — vira membro e perde o nome. Cruzar as duas listas
+   no cliente não resolve: o convite não devolve `user_id`, então o join seria palpite. O que
+   torna este o mais forte dos quatro é **como** apareceu: as `07` e `08`, implementadas em
+   paralelo e sem contato, esbarraram nele pelos dois lados. Ou `MemberResponse` ganha
+   `name`/`email`, ou o kernel ganha uma rota de diretório — é decisão de backend.
 
 O 1 e o 3 seguem em aberto: 1 é regra de domínio (422 no auto-rebaixamento e no último
 administrador ativo), 3 é rota nova. Ficam registrados nas specs que os acharam.
@@ -294,8 +309,8 @@ Frontend:
 4. ✅ `frontend/04-casca-e-personas.md` — app shell, navegação derivada de vínculos + entitlements, guard de acesso. **Fase 1 do frontend fechada.** Não há route group por persona: persona é runtime, route group é estático — ver `Como ficou`.
 5. ✅ `frontend/05-selecao-de-organizacao.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas). O último `orgId` visitado passou a ganhar do atalho da Plataforma no pós-login — muda uma decisão da `04`, ver `Como ficou`.
 6. ✅ `frontend/06-onboarding.md` — telas públicas de aceite de convite e de auto-cadastro de Parceiro, com o grupo de senha compartilhado. **Fase 1 fechada.** A "terceira tela" do critério 3 (troca de senha logada) nunca existiu, e o critério 4 cede ao 2 no auto-cadastro — ver `Como ficou`.
-7. 📋 `frontend/07-telas-da-frota.md` — as telas do primeiro app de negócio: viagens, veículos, condutores e quilometragem, substituindo a rota-placeholder. Um item de menu, quatro telas em abas — módulo não edita a casca. **Tudo o que difere entre pessoas sai de capability, nunca de persona.** O descritor da frota sai do `MODULE_CATALOG` e vira `features/frota/module.ts`, o espelho do que a `backend/10` fez. Fica fora: pré-preencher o hodômetro (falta `current_odometer` no backend) e exportar relatório.
-8. 📋 `frontend/08-gestao-da-organizacao.md` — pessoas (membros + convites em abas) e convênios: a tela que a `backend/08` nomeou. `buildNav` passa a receber `permissions` pra decidir os itens de kernel. Convite nunca exibe token, e vencimento nunca é recalculado no navegador. **Dois achados viram spec de backend:** `PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do último administrador, e não há rota pra uma Empresa descobrir Parceiros.
+7. ✅ `frontend/07-telas-da-frota.md` — as telas do primeiro app de negócio: viagens, veículos, condutores e quilometragem, substituindo a rota-placeholder. Um item de menu, quatro telas em abas — módulo não edita a casca. **Tudo o que difere entre pessoas sai de capability, nunca de persona.** O descritor da frota sai do `MODULE_CATALOG` e vira `features/frota/module.ts`, o espelho do que a `backend/10` fez. Fica fora: pré-preencher o hodômetro (falta `current_odometer` no backend) e exportar relatório. **Implementada em 2026-07-21**; o `Como ficou` registra que a spec errou os valores de `agrupar_por` (o enum é `veiculo`/`condutor`) e que o 409 de sobreposição é discriminado por texto de mensagem, porque o `core` devolve `code: "conflict"` pros cinco conflitos de `vehicle_usages`.
+8. ✅ `frontend/08-gestao-da-organizacao.md` — pessoas (membros + convites em abas) e convênios: a tela que a `backend/08` nomeou. `buildNav` passa a receber `permissions` pra decidir os itens de kernel. Convite nunca exibe token, e vencimento nunca é recalculado no navegador. **Dois achados viram spec de backend:** `PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do último administrador, e não há rota pra uma Empresa descobrir Parceiros. **Implementada em 2026-07-21**, e um terceiro achado apareceu na implementação: `MemberResponse` não tem nome nem e-mail, então a lista de membros mostra UUID. O `Como ficou` também registra duas leituras que a spec não fechava — "Parceiros" segue persona (não existe capability pra usar, porque a rota exige só o vínculo) e `platform_admin` **vê** Pessoas, porque tem `members.read` de verdade.
 9. 📋 `frontend/09-console-da-plataforma.md` — tenants e módulos vendidos, dentro da `/plataforma` e **não** na casca do tenant (é a tela de quem vende). Inspecionar tenant não escreve o `last-org`, senão o pós-login cairia no último cliente inspecionado. **Bloqueada:** uma Empresa recém-provisionada não ganha o primeiro membro por tela nenhuma, e a saída decidida (o e-mail do primeiro admin no `POST /organizacoes`, criando o convite na mesma transação) é **spec de backend ainda não escrita** — implementar a `09` antes dela entregaria o console com o caminho que importa ainda passando por CLI.
 
 ## O que não fazer (fora de escopo desta fase)

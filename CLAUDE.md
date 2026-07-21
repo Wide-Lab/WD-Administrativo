@@ -24,27 +24,29 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 04  | membros e autorização (`access`)  | ✅  | casca e personas           | ✅  |
 | 05  | módulos e entitlements (`access`) | ✅  | seleção de organização     | ✅  |
 | 06  | convites e onboarding (`access`)  | ✅  | onboarding                 | ✅  |
-| 07  | testes automatizados              | ✅  | telas da frota             | 📋  |
-| 08  | gestão de convites (`access`)     | ✅  | gestão da organização      | 📋  |
+| 07  | testes automatizados              | ✅  | telas da frota             | ✅  |
+| 08  | gestão de convites (`access`)     | ✅  | gestão da organização      | ✅  |
 | 09  | capabilities de módulo            | ✅  | console da Plataforma      | 📋  |
 | 10  | **frota** (1º app de negócio)     | ✅  | —¹                         |     |
 
-📋 = **spec escrita, não implementada** (2026-07-20). As três de frontend existem em
-`.claude/specs/frontend/` com critérios de aceite fechados; nenhuma linha de código foi escrita
-pra elas. Implemente com `implementar-spec`, nesta ordem — a `07` é a que entrega valor visível
-(a frota só se usa por `curl` hoje), a `08` é a de uso diário do cliente, a `09` é a que destrava
-vender. **A `09` está bloqueada** por uma spec de backend ainda não escrita: o e-mail do primeiro
-admin no `POST /organizacoes` (decidido em 2026-07-21) — sem ela o console provisiona Empresa em
-que ninguém entra. As `07` e `08` não dependem de nada pendente.
+📋 = **spec escrita, não implementada**. Sobrou **uma**: a `frontend/09`, o console da Plataforma
+— a que destrava vender. As `07` e `08` foram implementadas em 2026-07-21, em duas worktrees em
+paralelo, e o merge custou **um** conflito (`components/ui/table.tsx`, criado pelas duas).
+**A `09` está bloqueada** por uma spec de backend ainda não escrita: o e-mail do primeiro admin no
+`POST /organizacoes` (decidido em 2026-07-21) — sem ela o console provisiona Empresa em que
+ninguém entra.
 
-¹ **a dívida em aberto do frontend, e ela foi adiada de propósito.** Não há testing-library/jsdom:
-`nav`, `home-path`, os rótulos de erro e a política de senha têm teste puro (61, `npm run test`),
-mas casca, guards, `Can`, seletor e os **dois formulários de onboarding** foram verificados só a
-olho, no browser. Junto com a **CI** (que a `backend/07` deixou encaminhada e que precisa da
-allowlist do `alembic check`), ficou **para depois das telas** — decisão do Kauan em 2026-07-20,
-porque o backend está duas fases à frente e as duas dívidas protegem código que existe, enquanto
-o que falta é código que não existe. Em troca, cada spec de tela obriga **teste do que é função
-pura na própria entrega** (schemas zod, tradução de erro, filtros de URL, `buildNav`).
+¹ **a dívida em aberto do frontend, e ela foi adiada de propósito — agora com a conta maior.**
+Não há testing-library/jsdom: `nav`, `home-path`, os rótulos de erro, a política de senha, os
+schemas zod, as traduções de erro e os filtros de URL têm teste puro (**173**, `npm run test`),
+mas casca, guards, `Can`, seletor, os dois formulários de onboarding e agora **as seis telas das
+`07`/`08`** foram verificados só a olho — e as `07`/`08` **nem isso**: foram implementadas sem
+subir a stack, contra os contratos lidos no código do backend, e checadas por `build`. Junto com a
+**CI** (que a `backend/07` deixou encaminhada e que precisa da allowlist do `alembic check`),
+ficou **para depois das telas** — decisão do Kauan em 2026-07-20. Em troca, cada spec de tela
+obriga **teste do que é função pura na própria entrega** (schemas zod, tradução de erro, filtros
+de URL, `buildNav`), e foi o que segurou 112 dos 173. Quem escrever a spec de teste de componente
+começa pelo formulário de viagem da `frontend/07`.
 
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
@@ -71,11 +73,14 @@ porque o `grants` do descritor chega até ele, sem uma linha em `PERMISSIONS_BY_
 `backend/08`, **o convite deixou de ser via só de ida**: listar e revogar viraram rota e o
 `partner_admin` passou a convidar — 235 testes.
 
-**O que resta é tela, e o desequilíbrio é o número que importa: o frontend consome 7 das 37
-rotas.** Nada em `membros`, `convenios`, `modulos`, gestão de convite ou **frota** tem interface —
-a frota são 14 rotas testadas que só se usam por `curl`, e `/frota` segue rota-placeholder atrás
-do `ModuleGuard`. As três specs que fecham isso estão **escritas e não implementadas**
-(`frontend/07`–`09`, ver a tabela); CI e teste de componente ficaram **para depois delas**, nota ¹.
+**O desequilíbrio de rota consumida praticamente fechou** (2026-07-21). Com a `frontend/07`, a
+frota tem tela: quatro delas — viagens, veículos, condutores e quilometragem — sob a rota que o
+`ModuleGuard` já protegia, e o descritor mudou-se do catálogo pra `features/frota/module.ts`. Com
+a `frontend/08`, a organização administra a si mesma: Pessoas (membros e convites em abas) e
+Parceiros (convênios), com o `buildNav` ganhando um terceiro grupo, o do kernel, decidido por
+capability. **O que segue sem interface é o que a `frontend/09` cobre** — `modulos` e o CRUD de
+`organizacoes`, que são atos da Plataforma sobre um tenant. CI e teste de componente seguem
+adiados, nota ¹, e a conta subiu: seis telas novas sem cobertura de DOM.
 
 **Duas dívidas que a `backend/10` descobriu e não pôde pagar:** `PageResponse`, `get_page_params`
 e o helper `_pg_enum` moram no `access`, um app de negócio não pode importá-los, e o critério da
@@ -85,13 +90,24 @@ só na migration desde a `0003`, e ele propõe dropar seis delas — a spec de C
 allowlist. Isso contradiz a seção `Sem migration` da `09`, que afirmava o contrário — e que já
 está anotada.
 
-**Três furos que as specs de tela acharam no backend** (2026-07-20), todos por olhar um contrato
-do lado de quem o consome: (1) **`PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do
-último administrador** — um `company_admin` se rebaixa e a organização fica sem quem a administre;
+**Quatro furos que as telas acharam no backend**, todos por olhar um contrato do lado de quem o
+consome: (1) **`PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do último
+administrador** — um `company_admin` se rebaixa e a organização fica sem quem a administre;
 (2) **uma Empresa recém-provisionada não ganha o primeiro membro por tela nenhuma** —
 `platform_admin` não tem `invitations.write` e `POST /membros` não existe; (3) **não há rota pra
-uma Empresa descobrir Parceiros**, então criar convênio começa colando um UUID. Nenhum é decidido
-pelo frontend. Ver `frontend/08` e `frontend/09`.
+uma Empresa descobrir Parceiros**, então criar convênio começa colando um UUID; e (4) — achado ao
+**implementar**, em 2026-07-21 — **`MemberResponse` não devolve nome nem e-mail**, e nenhuma das
+37 rotas traduz `user_id` em pessoa. A lista de membros mostra UUID, e o e-mail de quem foi
+convidado **aparece na aba Convites e some quando a pessoa aceita**. O quarto é o mais forte dos
+quatro pela forma como apareceu: as `07` e `08`, rodando **em paralelo e sem contato**, esbarraram
+nele pelos dois lados (o select de condutor e as colunas da lista). Nenhum é decidido pelo
+frontend. Ver `frontend/07`, `frontend/08` e `frontend/09`.
+
+**Uma dívida menor que a `frontend/07` registrou:** o `core` devolve `code: "conflict"` pros
+**cinco** conflitos distintos de `vehicle_usages`, então a tela discrimina a sobreposição de
+período **pelo texto da mensagem**. Está contido em `lib/frota-error.ts` e preso por teste com as
+strings literais do backend — reescrever a mensagem lá quebra teste aqui. O conserto é `code` por
+constraint.
 
 O que existe hoje:
 
@@ -186,12 +202,16 @@ O que existe hoje:
   (`/api/me/contexto`), `use-org-context` (`/me` + nome da org), `buildNav`/`homePathFor`
   (puras, testadas), `AppShell`, `Can`, `ModuleGuard`, `OrganizationSwitcher` (o seletor do
   masthead), `lib/labels.ts` (rótulos de papel/tipo) e `lib/last-org.ts` (o último `orgId`,
-  único uso de `localStorage`); e feature `onboarding`, as duas telas públicas de entrada.
+  único uso de `localStorage`) e `lib/roles.ts` (o espelho de `ROLES_BY_ORGANIZATION_TYPE`, que
+  não vem do backend porque nenhuma rota o expõe); feature `onboarding`, as duas telas públicas de
+  entrada; feature `frota` (`frontend/07`), as quatro telas do primeiro app de negócio; e feature
+  `organization` (`frontend/08`), Pessoas e Parceiros.
   Rotas: `/` **roteia** pra home da persona (não é tela), `(publico)/entrar`,
   `(publico)/convites/[token]`, `(publico)/parceiros/cadastro`, `/plataforma`
   (cross-tenant, guarda por vínculo de plataforma) e `/organizacoes/[orgId]/*`, cujo `layout`
-  resolve a persona e monta a casca. `refeicoes`/`frota` existem como **rotas-placeholder atrás
-  do `ModuleGuard`** — as fases 2/3 as substituem.
+  resolve a persona e monta a casca — com `pessoas`, `parceiros` e as quatro da `frota` dentro.
+  **`refeicoes` é a única rota-placeholder que sobrou** atrás do `ModuleGuard`; a fase 2 a
+  substitui.
 - **Onboarding no frontend são duas telas públicas, e nenhuma delas monta a home da persona.**
   O aceite (`/convites/[token]`) e o auto-cadastro (`/parceiros/cadastro`) terminam num
   `router.replace('/')`: o convite público **não devolve `orgId`** (backend/06), e quem sabe pra
@@ -216,10 +236,17 @@ O que existe hoje:
 - **Não há route group por persona** (`(admin)`/`(parceiro)`/`(colaborador)`), e é decisão:
   route group é estático, persona é runtime (vem do `/me`). O seam por persona mora no
   `AppShell` e no `buildNav`. Ver `Como ficou` da `frontend/04`.
-- **Label e path de módulo moram no frontend** (`features/context/modules.ts`), não no contexto:
-  o `/me` devolve só as **chaves** habilitadas, e o `ModuleNav` do descritor só sai pelo
-  `GET /modulos`, que é de `platform_admin`. Ligar o flag ainda faz o item aparecer sem deploy —
-  quem decide visibilidade é o entitlement. Mexeu no descritor do backend, mexe no catálogo.
+- **Label e path de módulo moram no frontend**, não no contexto: o `/me` devolve só as **chaves**
+  habilitadas, e o `ModuleNav` do descritor só sai pelo `GET /modulos`, que é de `platform_admin`.
+  Ligar o flag ainda faz o item aparecer sem deploy — quem decide visibilidade é o entitlement.
+  Mexeu no descritor do backend, mexe no catálogo. **O catálogo agora compõe em vez de declarar**
+  (`frontend/07`): a frota traz o seu de `features/frota/module.ts`, como o backend fez com
+  `src/api/modules.py`, e `features/context/modules.ts` guarda só `refeicoes` até a fase 2.
+- **`buildNav` monta três grupos, não dois** (`frontend/08`): Início, um item por módulo
+  contratado, e os do **kernel** — Pessoas (`members.read`) e Parceiros. Ele recebe `permissions`
+  desde então. Um módulo **não** edita o menu da casca pra caber: a frota tem quatro telas e um
+  item só, com a navegação interna em abas — módulo que precisa mexer no núcleo pra existir quebra
+  a promessa de que módulo pluga. Ver `Como ficou` da `frontend/07`.
 - `backend/tests/` — `pytest` contra a app de verdade (httpx + `ASGITransport`, sem rede) e um
   Postgres efêmero por sessão (testcontainers, **porta efêmera** — a máquina de dev já tem outro
   projeto em `localhost:5432`). `unit/` é regra pura e roda sem Docker; `integration/` migra com

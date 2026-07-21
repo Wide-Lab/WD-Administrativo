@@ -1,6 +1,8 @@
 # 07 — Telas da frota
 
-**Estado:** 📋 a implementar (escrita em 2026-07-20).
+**Estado:** ✅ implementada (2026-07-21) — 138 testes de frontend (61 + 77),
+`typecheck`/`lint`/`build` limpos. **Nenhum critério de fluxo foi observado em browser** — ver
+`Como ficou`, que separa o que tem teste do que ficou por inspeção visual.
 **Depende de:** `backend/10-frota.md` (as 14 rotas e as sete capabilities — está inteiro e
 observável por requisição), `frontend/04-casca-e-personas.md` (a casca, o `Can`, o `ModuleGuard`),
 `frontend/02-design-system.md` (os tokens).
@@ -227,3 +229,83 @@ estava: submit, estado e redirect.
 **Quem escrever a spec de teste de componente começa por aqui** — o formulário de viagem é o
 maior cliente sem rede do projeto depois desta entrega, e o caso 2 (o 409 de sobreposição) é o
 primeiro que eu escreveria.
+
+## Como ficou
+
+As quatro telas existem, a frota saiu do `curl` e a suíte foi de **61 para 138 testes**, com
+`typecheck`, `lint` e `build` limpos. O descritor saiu do catálogo pra `features/frota/module.ts`,
+como a spec pedia, e em `features/context/` **só** o `modules.ts` mudou — a casca não foi tocada.
+
+### A spec errou o nome dos valores de `agrupar_por`, e o código venceu
+
+A spec diz `agrupar_por=vehicle|driver`. O enum é `MileageGroupBy` em
+`frota/domain/rules.py:51`, e os valores são **`veiculo`/`condutor`**. A tela seguiu o código, com
+o desvio anotado no `schema.ts`. Fica registrado aqui em vez de corrigido no corpo acima porque é
+exatamente o tipo de erro que uma spec escrita antes do consumo produz — e o remédio é o que esta
+entrega já fez: ler o backend antes de escrever a tela, e não confiar na spec para nomes.
+
+### `ate` é expandido pra o fim do dia, e sem isso a data mentiria
+
+O backend filtra `started_at <= ate`. Uma data pura é meia-noite, então `ate=2026-07-20`
+esconderia **todas** as viagens do próprio dia 20 — o usuário pediria "até hoje" e não veria hoje.
+A tela expande pra `T23:59:59.999`, com teste. Vale pro filtro de viagens e pro relatório.
+
+### A tradução do 409 casa por texto, e isso é dívida de backend
+
+O `core` devolve `code: "conflict"` para os **cinco** conflitos distintos de `vehicle_usages`, e a
+sobreposição de período precisa de mensagem própria — é o único erro que fala de um dado que não
+está na tela. Sem um código por constraint, a prosa é o único discriminador. Ficou contido num
+arquivo só (`lib/frota-error.ts`), preso por testes que usam as **strings literais** do backend:
+reescrever a mensagem lá quebra teste aqui, que é o mínimo que se pode fazer para um acoplamento
+que não deveria existir. O conserto é `code` por constraint, e é spec de backend.
+
+### O que a tela **não** revalida, de propósito
+
+Só três regras vivem no cliente: o par indivisível (`ended_at` + `end_odometer`), os campos
+obrigatórios e a data futura — esta última porque é a única que o banco **não** consegue impor (um
+`CHECK` com `now()` é impossível no Postgres, como a `backend/10` registra). `ck_vehicle_usages_period`
+e `_odometer` **não** foram reimplementados: seriam a segunda contabilidade que esta spec manda
+evitar. Eles chegam como 409 e são roteados pro campo certo.
+
+### O quarto furo de backend: **membro não tem nome nem e-mail**
+
+A spec pede, pro `drivers.user_id`, "um select de membros da organização". A `MemberResponse`
+(`access/adapters/http/schemas.py`) devolve `id`, `user_id`, `organization_id`, `role`, `status`,
+`created_at` — **nenhuma identidade** —, e não há rota que traduza `user_id` em pessoa. O select
+mostra `papel · <8 primeiros caracteres do uuid>`, que é ruim de usar e está anotado no código
+como lacuna do backend, não escolha da tela.
+
+Este achado é **o mesmo** que a `frontend/08` encontrou pelo outro lado (as colunas da lista de
+membros), nas duas implementações rodando em paralelo e sem contato. Duas telas independentes
+esbarrando na mesma ausência é o que o torna spec de backend e não contorno local:
+`MemberResponse` precisa de `name`/`email`, ou o kernel precisa de uma rota de diretório.
+
+### Os primitivos novos usam os tokens do projeto, não o output stock do shadcn
+
+`table.tsx`, `select.tsx`, `dialog.tsx` e `textarea.tsx`. O output padrão do shadcn referencia
+`bg-background`, `text-muted-foreground` e `border-input`, que **não existem** neste tema — e
+utilidade inexistente não é cor neutra, é ausência de estilo. Foram espelhados nos primitivos que
+já existiam. `select.tsx` é `<select>` nativo (sem dependência nova); `dialog.tsx` é Radix, e é a
+**única dependência que esta entrega adicionou** (`@radix-ui/react-dialog`), pelo focus trap,
+`Escape` e `aria-modal` dos dois diálogos de viagem.
+
+### Filtro de viagem na URL; filtro de status de veículo/condutor, não
+
+A spec põe os filtros na URL e a razão é o atalho do 409 de sobreposição, que precisa montar um
+link. Isso vale pra **viagens**. Os filtros de status de veículo e condutor ficaram em estado
+local: ninguém precisa compartilhar "a lista de veículos inativos", e subir tudo pra URL por
+simetria seria cerimônia sem cliente.
+
+### O que tem teste, e o que não tem
+
+**77 testes novos**, em `schema.test.ts` (os três formulários, com o par indivisível e a data
+futura), `lib/frota-error.test.ts` (o mapa 409/422/403, com as strings literais do backend) e
+`lib/filters.test.ts` (ida e volta: a URL que a tela escreve é a que ela sabe ler, sobre quatro
+formatos de filtro, mais os casos de mês corrente, mês de 30 dias, fevereiro bissexto e
+`agrupar_por` inválido).
+
+**O que não tem teste, e não foi observado:** os critérios 1–10 descrevem interação com quatro
+personas diferentes. A stack não foi subida nesta sessão; as telas estão implementadas contra os
+contratos lidos no código do backend e verificadas por build, **não** vistas rodando. É a dívida
+de teste de componente da nota ¹ do `CLAUDE.md`, agravada de propósito por esta entrega e agora
+com quatro telas de formulário esperando por ela.
