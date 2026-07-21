@@ -1,13 +1,17 @@
 'use client'
 
-import { ModuleGuard } from '#/features/context/components/module-guard'
-import { ModulePlaceholder } from '#/features/context/components/module-placeholder'
+import { Suspense } from 'react'
 
-/** Frota — fase 3. Mesma casca guardada de Refeições; o conteúdo é do módulo. */
+import { UsagesScreen } from '#/features/frota/components/usages-screen'
+
+/** Viagens — a home do módulo.
+ *
+ *  `Suspense` porque a tela lê `useSearchParams` (os filtros **são** a URL), e o Next exige o
+ *  limite pra poder renderizar o resto da página sem esperar a query string. */
 export default function Page() {
   return (
-    <ModuleGuard moduleKey="frota" label="Frota">
-      <ModulePlaceholder name="Frota" phase="fase 3" />
-    </ModuleGuard>
+    <Suspense fallback={null}>
+      <UsagesScreen />
+    </Suspense>
   )
 }
