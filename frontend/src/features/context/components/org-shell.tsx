@@ -50,7 +50,8 @@ function RedirectToOwnHome() {
 
 function OrgContextBoundary({ children }: { children: ReactNode }) {
   const orgId = useOrgId()
-  const { orgContext, organization, persona, modules, isLoading, isForbidden } = useOrgContext()
+  const { orgContext, organization, persona, modules, permissions, isLoading, isForbidden } =
+    useOrgContext()
 
   // Só se lembra da organização que o backend **deixou abrir**: um `orgId` que respondeu 403
   // nunca vira o destino do próximo login. Lembrar não escolhe nada — a organização ativa é a
@@ -79,7 +80,7 @@ function OrgContextBoundary({ children }: { children: ReactNode }) {
       orgId={orgId}
       organizationName={organization?.name ?? null}
       persona={persona}
-      nav={buildNav({ orgId, persona, modules, catalog: MODULE_CATALOG })}
+      nav={buildNav({ orgId, persona, modules, catalog: MODULE_CATALOG, permissions })}
     >
       {children}
     </AppShell>
