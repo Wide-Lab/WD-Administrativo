@@ -28,20 +28,36 @@ const catalog: readonly ModuleNavDescriptor[] = [
   },
 ]
 
-function keysOf(persona: Persona, modules: readonly string[]): string[] {
-  return buildNav({ orgId: ORG, persona, modules, catalog }).map((item) => item.key)
+function keysOf(
+  persona: Persona,
+  modules: readonly string[],
+  permissions: readonly string[] = [],
+): string[] {
+  return buildNav({ orgId: ORG, persona, modules, catalog, permissions }).map((item) => item.key)
 }
 
 describe('buildNav', () => {
   it('sempre abre com a home da organização', () => {
-    const [first] = buildNav({ orgId: ORG, persona: 'collaborator', modules: [], catalog })
+    const [first] = buildNav({
+      orgId: ORG,
+      persona: 'collaborator',
+      modules: [],
+      catalog,
+      permissions: [],
+    })
 
     expect(first?.key).toBe('inicio')
     expect(first?.href).toBe(HOME)
   })
 
   it('prefixa o orgId no href do módulo — a org ativa é a da URL', () => {
-    const nav = buildNav({ orgId: ORG, persona: 'collaborator', modules: ['refeicoes'], catalog })
+    const nav = buildNav({
+      orgId: ORG,
+      persona: 'collaborator',
+      modules: ['refeicoes'],
+      catalog,
+      permissions: [],
+    })
 
     expect(nav.find((item) => item.key === 'refeicoes')).toMatchObject({
       label: 'Refeições',
@@ -64,12 +80,19 @@ describe('buildNav', () => {
     expect(keysOf('platform', ['refeicoes', 'frota'])).toEqual(['inicio'])
   })
 
+  // Os dois casos abaixo trazem 'parceiros' junto porque ele não depende de capability nenhuma
+  // (a rota de convênios exige só o vínculo) — quem o filtra é a persona. Ver `KERNEL_NAV`.
   it('dá ao Parceiro só o módulo que o lista nas personas', () => {
-    expect(keysOf('partner', ['refeicoes', 'frota'])).toEqual(['inicio', 'refeicoes'])
+    expect(keysOf('partner', ['refeicoes', 'frota'])).toEqual(['inicio', 'refeicoes', 'parceiros'])
   })
 
   it('dá ao Admin da Empresa os dois', () => {
-    expect(keysOf('company_admin', ['refeicoes', 'frota'])).toEqual(['inicio', 'refeicoes', 'frota'])
+    expect(keysOf('company_admin', ['refeicoes', 'frota'])).toEqual([
+      'inicio',
+      'refeicoes',
+      'frota',
+      'parceiros',
+    ])
   })
 
   it('ignora chave habilitada que o frontend não conhece, sem quebrar', () => {
@@ -92,14 +115,106 @@ describe('buildNav', () => {
       persona: 'collaborator',
       modules: ['refeicoes'],
       catalog: MODULE_CATALOG,
+      permissions: [],
     })
 
     expect(nav.map((item) => item.key)).toEqual(['inicio', 'refeicoes'])
   })
 })
 
+/** O grupo do kernel (`frontend/08`). São as telas que existem em todo tenant, e a regra de
+ *  visibilidade delas é a única peça desta spec que dá pra provar sem browser — é por isso que o
+ *  critério 11 a nomeia. */
+describe('buildNav — Pessoas e Parceiros', () => {
+  // O critério 11 em duas linhas: com e sem `members.read`.
+  it('mostra Pessoas a quem tem members.read e esconde de quem não tem', () => {
+    expect(keysOf('company_admin', [], ['members.read'])).toContain('pessoas')
+    expect(keysOf('company_admin', [], [])).not.toContain('pessoas')
+  })
+
+  it('decide Pessoas por capability, não por persona', () => {
+    // O caso que persona erraria: `hr` e `finance` compartilham a persona `company_admin`, e só
+    // um dos dois tem `members.read`. Um filtro por persona daria a tela aos dois.
+    const hr = keysOf('company_admin', [], ['members.read', 'invitations.read'])
+    const finance = keysOf('company_admin', [], [])
+
+    expect(hr).toContain('pessoas')
+    expect(finance).not.toContain('pessoas')
+  })
+
+  it('dá Pessoas ao partner_admin, que é outra persona', () => {
+    // A outra metade do mesmo argumento: a capability atravessa personas diferentes.
+    expect(keysOf('partner', [], ['members.read'])).toContain('pessoas')
+  })
+
+  it('mostra Parceiros a quem administra a organização, dos dois lados do convênio', () => {
+    expect(keysOf('company_admin', [], [])).toContain('parceiros')
+    expect(keysOf('partner', [], [])).toContain('parceiros')
+  })
+
+  // O critério 1: o `collaborator` não vê nenhum dos dois.
+  it('esconde os dois do Colaborador', () => {
+    expect(keysOf('collaborator', ['refeicoes'], [])).toEqual(['inicio', 'refeicoes'])
+  })
+
+  /** A Plataforma inspecionando um tenant é o caso que mostra a regra funcionando, e o resultado
+   *  é assimétrico de propósito:
+   *
+   *  - **Pessoas aparece.** `platform_admin` tem `members.read`/`members.write` de verdade
+   *    (`PERMISSIONS_BY_ROLE`), porque é assim que a Widelab conserta o vínculo de um cliente, e
+   *    o `require_permission` afrouxa pra ele em qualquer `orgId`. A tela funciona pra ele, então
+   *    escondê-la seria a tal "persona acertando por acidente" que a spec manda evitar.
+   *  - **Parceiros não aparece.** Conveniar é ato da Empresa — `platform_admin` não tem
+   *    `agreements.write` (decisão da `backend/03`), e a persona `platform` não é lado nenhum de
+   *    um convênio.
+   */
+  it('dá Pessoas à Plataforma, que tem a capability, e não lhe dá Parceiros', () => {
+    expect(keysOf('platform', [], ['members.read', 'members.write'])).toEqual(['inicio', 'pessoas'])
+  })
+
+  it('não dá Pessoas à Plataforma sem a capability', () => {
+    // Quem decide continua sendo a capability, não o fato de ser plataforma.
+    expect(keysOf('platform', [], [])).toEqual(['inicio'])
+  })
+
+  it('põe o grupo do kernel depois dos módulos', () => {
+    expect(keysOf('company_admin', ['refeicoes', 'frota'], ['members.read'])).toEqual([
+      'inicio',
+      'refeicoes',
+      'frota',
+      'pessoas',
+      'parceiros',
+    ])
+  })
+
+  it('embute o orgId nos hrefs dos dois, como faz com os módulos', () => {
+    const nav = buildNav({
+      orgId: ORG,
+      persona: 'company_admin',
+      modules: [],
+      catalog,
+      permissions: ['members.read'],
+    })
+
+    expect(nav.find((item) => item.key === 'pessoas')?.href).toBe(`${HOME}/pessoas`)
+    expect(nav.find((item) => item.key === 'parceiros')?.href).toBe(`${HOME}/parceiros`)
+  })
+
+  it('não deixa uma capability de módulo destravar tela de kernel', () => {
+    // `frota.vehicles.read` é capability namespaced de módulo (`backend/09`). Um `includes`
+    // frouxo ou um `startsWith` a confundiria com `members.read`.
+    expect(keysOf('company_admin', ['frota'], ['frota.vehicles.read'])).not.toContain('pessoas')
+  })
+})
+
 describe('isNavItemActive', () => {
-  const nav = buildNav({ orgId: ORG, persona: 'collaborator', modules: ['refeicoes'], catalog })
+  const nav = buildNav({
+    orgId: ORG,
+    persona: 'collaborator',
+    modules: ['refeicoes'],
+    catalog,
+    permissions: [],
+  })
   const inicio = nav[0]!
   const refeicoes = nav[1]!
 

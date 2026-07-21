@@ -87,13 +87,21 @@ function Capabilities() {
  *  `buildNav` —, porque duas regras divergiriam no primeiro módulo novo. */
 function Modules() {
   const orgId = useOrgId()
-  const { persona, modules } = useOrgContext()
+  const { persona, modules, permissions } = useOrgContext()
 
   if (persona === null) return null
 
-  const items = buildNav({ orgId, persona, modules, catalog: MODULE_CATALOG }).filter(
-    (item) => item.key !== 'inicio',
-  )
+  // Só os **módulos**: a `buildNav` passou a devolver também o grupo de kernel (Pessoas,
+  // Parceiros), e esta seção é a dos serviços que a Empresa contratou. Filtrar pelo catálogo, e
+  // não por uma lista de exclusão, é o que mantém isto certo quando um módulo novo entrar.
+  const moduleKeys = new Set(MODULE_CATALOG.map((descriptor) => descriptor.key))
+  const items = buildNav({
+    orgId,
+    persona,
+    modules,
+    catalog: MODULE_CATALOG,
+    permissions,
+  }).filter((item) => moduleKeys.has(item.key))
 
   if (items.length === 0) {
     return (
