@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { Badge } from '#/components/ui/badge'
-import { Button } from '#/components/ui/button'
+import { Button, type ButtonProps } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import {
   Table,
@@ -162,9 +162,15 @@ export function UsagesScreen() {
   )
 }
 
-function NewUsageButton() {
+/** O gatilho do formulário de viagem.
+ *
+ *  **Espalha `props`, e isso não é opcional:** ele é usado como `trigger` de um `DialogTrigger
+ *  asChild`, e é o `Slot` do Radix quem entrega o `onClick` (e o `aria-expanded`, e o `ref`) pra
+ *  cá. Um componente que ignore as props recebidas engole o clique em silêncio — o botão fica na
+ *  tela, sem abrir nada e sem erro nenhum. */
+function NewUsageButton(props: ButtonProps) {
   return (
-    <Button>
+    <Button {...props}>
       <Plus aria-hidden />
       Lançar viagem
     </Button>
