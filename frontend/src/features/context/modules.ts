@@ -1,10 +1,11 @@
 /**
  * Os metadados de navegação dos módulos de negócio, chaveados pela chave do módulo.
  *
- * **Este arquivo é provisório e some**, pelo mesmo motivo que o `src/api/modules.py` do backend:
- * um descritor pertence ao módulo que ele descreve. Quando `refeicoes` (fase 2) e `frota`
- * (fase 3) existirem, cada um traz o seu de `features/<módulo>/module.ts` e este catálogo vira
- * a composição deles.
+ * **Este arquivo encolhe até sumir**, pelo mesmo motivo que o `src/api/modules.py` do backend:
+ * um descritor pertence ao módulo que ele descreve. `frota` já saiu daqui — o descritor dela mora
+ * em `features/frota/module.ts` e este catálogo o **compõe**, que era o caminho anunciado desde a
+ * `05`. `refeicoes` fica como declaração solta até a fase 2, e o catálogo continua existindo
+ * depois disso: alguém tem de montar a lista.
  *
  * **Por que o label e o path moram aqui, e não vêm do backend.** A spec `frontend/04` supõe que
  * a nav venha "dos descritores expostos no contexto", mas o `GET /api/organizacoes/{orgId}/me`
@@ -19,10 +20,11 @@
  * para uma rota que só um deploy cria.
  */
 
-import { Car, UtensilsCrossed } from 'lucide-react'
+import { UtensilsCrossed } from 'lucide-react'
 
 import type { NavIcon } from '#/features/context/nav'
 import type { Persona } from '#/features/context/types'
+import { FROTA_MODULE } from '#/features/frota/module'
 
 export type ModuleNavDescriptor = {
   /** A chave estável do módulo — a mesma que o backend usa em rota e entitlement. */
@@ -45,11 +47,5 @@ export const MODULE_CATALOG: readonly ModuleNavDescriptor[] = [
     personas: ['company_admin', 'collaborator', 'partner'],
     icon: UtensilsCrossed,
   },
-  {
-    key: 'frota',
-    label: 'Frota',
-    path: '/frota',
-    personas: ['company_admin', 'collaborator'],
-    icon: Car,
-  },
+  FROTA_MODULE,
 ]
