@@ -45,6 +45,9 @@ havendo. `memberships.role` e o `CHECK` gerado a partir de `ROLES_BY_ORGANIZATIO
 idênticos, porque nenhum papel muda. Logo: **nenhuma revisão de Alembic**, e o `alembic check`
 continua limpo.
 
+> **A segunda metade dessa frase é falsa, e já era quando foi escrita** — a primeira se sustentou.
+> `alembic check` não estava limpo desde a `0003`. Ver o último item do `Como ficou`.
+
 ## O descritor passa a declarar papel→capabilities
 
 `ModuleDescriptor.permissions` — hoje `Sequence[Permission]` — vira um mapa, e o campo plano
@@ -287,3 +290,15 @@ migration" previa. O que a implementação decidiu e a spec não previa:
   vez do `Sequence`. Nada mudou na prática (a lista plana já o era), ele é sempre valor de dict
   e nunca chave, e `frozen=True` só gera `__hash__` — não o chama. Registrado porque o próximo
   a tentar `set[ModuleDescriptor]` vai descobrir isso do jeito difícil.
+- **A seção "Sem migration" afirma que o `alembic check` continua limpo, e isso é falso**
+  (anotado em 2026-07-20, depois que a `10` topou com o mesmo). A metade que se sustentou é a que
+  importava aqui: esta spec realmente não gerou revisão nenhuma, e o head seguiu `0005`. A outra
+  metade nunca foi verdade — `alembic check` já propunha dropar `fk_memberships_user` (0003),
+  `fk_module_entitlements_granted_by` (0004) e `fk_invitations_invited_by` (0005) **antes** desta
+  entrega, porque FK que cruza módulo vive só na migration e o `--autogenerate` não a enxerga no
+  model. O erro foi de verificação, não de decisão: "não gerei migration" foi conferido, "o
+  `check` está limpo" foi deduzido de lá sem rodar. A `10` acrescentou as três da frota e fez o
+  registro completo — ver o `Como ficou` dela. Enquanto FK entre módulos viver só na migration,
+  `alembic check` **nunca** será verde, e usá-lo em CI exige allowlist das seis; é decisão da spec
+  de CI. **A lição pro próximo `Como ficou`:** afirmação sobre ferramenta só entra se a ferramenta
+  foi rodada.

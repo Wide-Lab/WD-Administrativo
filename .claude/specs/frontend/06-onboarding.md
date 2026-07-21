@@ -152,12 +152,22 @@ O que a implementação decidiu, e a spec não previa:
   `RedirectIfAuthenticated`). O token é de um **e-mail**, não de uma sessão, e quem decide o que
   fazer com ele é o backend. Barrar aqui trancaria fora justamente quem abriu o link no navegador
   onde já estava logado — o caso mais comum de todos.
-- **`/parceiros/cadastro` não tem porta de entrada na UI, e é o buraco mais provável de doer.**
+- **`/parceiros/cadastro` não tem porta de entrada na UI, e isso virou decisão — não é buraco.**
   Nenhuma tela linka pra ela: o `/entrar` é da `03` e não foi tocado, e esta spec não pede link
   nenhum. Hoje se chega lá **só por URL direta** (o convite, esse, chega por e-mail e o link já
   funciona). Um "É um parceiro? Cadastre-se" no login seria uma linha — não foi feito porque muda
-  uma tela entregue e a spec não pediu. Se o Parceiro tem de se achar sozinho, é decisão de produto
-  e vira spec.
+  uma tela entregue e a spec não pediu.
+  **Resolvido em 2026-07-21 (Kauan): fica sem link, e o link é a Widelab que manda por fora.**
+  O Parceiro **não** deve se achar sozinho. O raciocínio é o do domínio: um Parceiro só serve pra
+  alguma coisa depois de ter convênio com uma Empresa, e convênio é ato da Empresa
+  (`agreements.write`, que nem `platform_admin` tem). Um restaurante que se cadastra por conta
+  própria, sem ninguém esperando por ele, cria uma organização órfã que não atende ninguém — e
+  ainda ocupa o e-mail dele, que é o que o 409 vai devolver quando o cadastro *combinado*
+  finalmente acontecer. O auto-cadastro existe pra ser **rápido quando alguém já o convidou por
+  fora**, não pra ser descoberto.
+  **Consequência a respeitar:** não adicione esse link "por ergonomia" numa entrega futura. A
+  ausência é a decisão. Se um dia houver aquisição aberta de Parceiro, o que muda não é o link —
+  é o domínio (um Parceiro sem convênio precisaria de estado próprio, e não tem).
 - **Sem teste de componente, e agora a dívida tem os dois maiores clientes do projeto.** O que tem
   teste é o que dá pra provar sem DOM: a política de senha compartilhada nos **dois** schemas
   (critério 3, pelo comportamento — não pela identidade do objeto) e as mensagens de erro (critério

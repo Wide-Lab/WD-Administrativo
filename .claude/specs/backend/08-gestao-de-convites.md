@@ -219,8 +219,8 @@ de verdade do harness da `07`, incluindo os 401, 403, 404, 409 e 410. `ruff`, `r
   esta spec **não** mexeu (mexeu em `PERMISSIONS_BY_ROLE`, que o banco não conhece). Logo o
   `alembic check` responde hoje exatamente o que respondia antes desta entrega — e o que ele
   responde são os **seis** `remove_fk` que a `10` documentou, não silêncio. A frase "o `alembic
-  check` continua limpo", na seção `Sem migration` acima, repete o engano que o `Como ficou` da
-  `09` cometeu; fica registrada como errada em vez de editada.
+  check` continua limpo", na seção `Sem migration` acima, repete o engano que a seção `Sem
+  migration` da `09` cometeu; fica registrada como errada em vez de editada.
 - **`partner_admin` não ganhou rota, teste de rota nova nem `if` em lugar nenhum** — só as duas
   linhas de `frozenset`, como a spec previa. O que o teste ponta a ponta mostrou é que o resto já
   estava de pé: o convite nasce, o aceite cria o `membership(partner_operator)` e a persona

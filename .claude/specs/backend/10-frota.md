@@ -408,9 +408,10 @@ implementação decidiu e a spec não previa:
   `fk_module_entitlements_granted_by` (0004) e `fk_invitations_invited_by` (0005), todas com o
   comentário "um `--autogenerate` futuro vai propor dropá-la. Recuse." nas próprias migrations. A
   frota acrescenta as suas três (`fk_vehicles_organization`, `fk_drivers_organization`,
-  `fk_vehicle_usages_organization`), do mesmo tipo e pelo mesmo motivo. **Isto contradiz o `Como
-  ficou` da `09`, que afirma "o `alembic check` continua limpo"** — a afirmação era falsa quando
-  foi escrita, e este é o registro. Enquanto FK entre módulos viver só na migration, `alembic
+  `fk_vehicle_usages_organization`), do mesmo tipo e pelo mesmo motivo. **Isto contradiz a seção
+  "Sem migration" da `09`, que afirma "o `alembic check` continua limpo"** — a afirmação era falsa
+  quando foi escrita, e este é o registro. (A `09` foi anotada em 2026-07-20 e agora aponta pra
+  cá.) Enquanto FK entre módulos viver só na migration, `alembic
   check` **nunca** será verde, e usá-lo em CI exige uma allowlist dessas seis. Vira decisão da
   spec de CI.
 - **Dois testes existentes quebraram, e as duas quebras eram staleness legítima.**

@@ -24,24 +24,33 @@ mapa de navegação rápida — quando ele e uma spec discordarem, **a spec venc
 | 04  | membros e autorização (`access`)  | ✅  | casca e personas           | ✅  |
 | 05  | módulos e entitlements (`access`) | ✅  | seleção de organização     | ✅  |
 | 06  | convites e onboarding (`access`)  | ✅  | onboarding                 | ✅  |
-| 07  | testes automatizados              | ✅  | —¹                         |     |
-| 08  | gestão de convites (`access`)     | ✅  |                            |     |
-| 09  | capabilities de módulo            | ✅  |                            |     |
-| 10  | **frota** (1º app de negócio)     | ✅  | —²                         |     |
+| 07  | testes automatizados              | ✅  | telas da frota             | 📋  |
+| 08  | gestão de convites (`access`)     | ✅  | gestão da organização      | 📋  |
+| 09  | capabilities de módulo            | ✅  | console da Plataforma      | 📋  |
+| 10  | **frota** (1º app de negócio)     | ✅  | —¹                         |     |
 
-¹ **a dívida em aberto do frontend.** Não há testing-library/jsdom: `nav`, `home-path`, os
-rótulos de erro e a política de senha têm teste puro (61, `npm run test`), mas casca, guards,
-`Can`, seletor e os **dois formulários de onboarding** foram verificados só a olho, no browser.
-É a candidata óbvia a spec, junto com a CI que a `backend/07` deixou encaminhada.
+📋 = **spec escrita, não implementada** (2026-07-20). As três de frontend existem em
+`.claude/specs/frontend/` com critérios de aceite fechados; nenhuma linha de código foi escrita
+pra elas. Implemente com `implementar-spec`, nesta ordem — a `07` é a que entrega valor visível
+(a frota só se usa por `curl` hoje), a `08` é a de uso diário do cliente, a `09` é a que destrava
+vender. **A `09` está bloqueada** por uma spec de backend ainda não escrita: o e-mail do primeiro
+admin no `POST /organizacoes` (decidido em 2026-07-21) — sem ela o console provisiona Empresa em
+que ninguém entra. As `07` e `08` não dependem de nada pendente.
 
-² as **telas da frota** são `frontend/07`, ainda não escrita. Hoje `/frota` é a rota-placeholder
-atrás do `ModuleGuard`; o backend do módulo está completo e todo observável por requisição.
+¹ **a dívida em aberto do frontend, e ela foi adiada de propósito.** Não há testing-library/jsdom:
+`nav`, `home-path`, os rótulos de erro e a política de senha têm teste puro (61, `npm run test`),
+mas casca, guards, `Can`, seletor e os **dois formulários de onboarding** foram verificados só a
+olho, no browser. Junto com a **CI** (que a `backend/07` deixou encaminhada e que precisa da
+allowlist do `alembic check`), ficou **para depois das telas** — decisão do Kauan em 2026-07-20,
+porque o backend está duas fases à frente e as duas dívidas protegem código que existe, enquanto
+o que falta é código que não existe. Em troca, cada spec de tela obriga **teste do que é função
+pura na própria entrega** (schemas zod, tradução de erro, filtros de URL, `buildNav`).
 
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
 uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Objetivo` /
 `Fora de escopo` / `Critérios de aceite`).
 
-## Estado atual — fase 1 fechada e o 1º app de negócio de pé; falta CI e teste de componente
+## Estado atual — o backend está duas fases à frente do frontend, e é isso que falta
 
 Backend `01`–`07` e frontend `01`–`06` estão implementados: dá pra subir a stack, logar,
 provisionar Empresas/Parceiros, conveniá-los, vincular pessoas com papel, **vender módulo
@@ -60,16 +69,29 @@ uma capability declarada por um módulo chega a um papel — 86 testes. E com a 
 `src/core` não mudou em nenhuma linha. Um `manager` cadastra veículo e lança viagem
 porque o `grants` do descritor chega até ele, sem uma linha em `PERMISSIONS_BY_ROLE`. E com a
 `backend/08`, **o convite deixou de ser via só de ida**: listar e revogar viraram rota e o
-`partner_admin` passou a convidar — 235 testes. **O que
-resta antes da fase 2 é CI** (encaminhada pela `backend/07`) **e a infra de teste de componente do
-frontend** — ver a nota ¹ da tabela; e as **telas da frota** (`frontend/07`), nota ².
+`partner_admin` passou a convidar — 235 testes.
+
+**O que resta é tela, e o desequilíbrio é o número que importa: o frontend consome 7 das 37
+rotas.** Nada em `membros`, `convenios`, `modulos`, gestão de convite ou **frota** tem interface —
+a frota são 14 rotas testadas que só se usam por `curl`, e `/frota` segue rota-placeholder atrás
+do `ModuleGuard`. As três specs que fecham isso estão **escritas e não implementadas**
+(`frontend/07`–`09`, ver a tabela); CI e teste de componente ficaram **para depois delas**, nota ¹.
 
 **Duas dívidas que a `backend/10` descobriu e não pôde pagar:** `PageResponse`, `get_page_params`
 e o helper `_pg_enum` moram no `access`, um app de negócio não pode importá-los, e o critério da
 spec proibia promovê-los ao `core` — então a frota tem cópias, e Refeições vai copiar de novo
 (promovê-los é spec própria). E o **`alembic check` nunca esteve limpo**: FK que cruza módulo vive
 só na migration desde a `0003`, e ele propõe dropar seis delas — a spec de CI vai precisar de
-allowlist. Isso contradiz o `Como ficou` da `09`, que afirmava o contrário.
+allowlist. Isso contradiz a seção `Sem migration` da `09`, que afirmava o contrário — e que já
+está anotada.
+
+**Três furos que as specs de tela acharam no backend** (2026-07-20), todos por olhar um contrato
+do lado de quem o consome: (1) **`PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do
+último administrador** — um `company_admin` se rebaixa e a organização fica sem quem a administre;
+(2) **uma Empresa recém-provisionada não ganha o primeiro membro por tela nenhuma** —
+`platform_admin` não tem `invitations.write` e `POST /membros` não existe; (3) **não há rota pra
+uma Empresa descobrir Parceiros**, então criar convênio começa colando um UUID. Nenhum é decidido
+pelo frontend. Ver `frontend/08` e `frontend/09`.
 
 O que existe hoje:
 
@@ -148,10 +170,15 @@ O que existe hoje:
   opera a frota do cliente. **Dívida:** o `/me` e o guard somam a permissão em dois lugares
   distintos que nada obriga a concordar — ver `Como ficou` da `backend/09`.
 - **Criar membro é convite** (`POST /api/organizacoes/{orgId}/convites` + aceite), não `POST`
-  direto. A **CLI de vínculo continua**, agora só pro que o convite não alcança — que depois da
-  `backend/08` é **um caso só**: o bootstrap do primeiro `platform_admin`, que não tem quem o
-  convide. (O segundo membro de um Parceiro era o outro caso, e deixou de ser: o `partner_admin`
-  convida.) `python -m src.modules.access.cli grant --email … --role … [--org …]`; sem `--org`, o
+  direto. A **CLI de vínculo continua**, agora só pro que o convite não alcança — que são **dois
+  casos**, não um: o bootstrap do primeiro `platform_admin`, que não tem quem o convide, e **o
+  primeiro membro de qualquer organização recém-provisionada**, pelo mesmo motivo (a `frontend/09`
+  achou este; `platform_admin` não tem `invitations.write` e `POST /membros` não existe). O
+  segundo **já tem saída decidida e não escrita** (Kauan, 2026-07-21): `POST /organizacoes` passa a
+  aceitar o e-mail do primeiro admin e cria o convite na mesma transação, como o auto-cadastro de
+  Parceiro faz — quando essa spec de backend existir, a CLI volta a ter um caso só. (O
+  segundo membro de um Parceiro era um terceiro caso, e deixou de ser: o `partner_admin` convida.)
+  `python -m src.modules.access.cli grant --email … --role … [--org …]`; sem `--org`, o
   alvo é a organização `platform`.
 - `frontend/` — scaffold Next, design system (tokens em `src/styles.css`, primitivos shadcn,
   vitrine em `/design-system`), feature `auth` (`(publico)/entrar`, `use-session`, guarda de
@@ -174,6 +201,12 @@ O que existe hoje:
   (200, mesmo corpo), e é isso, não a tela, que impede vazar quem já é cadastrado; o **409 do
   auto-cadastro conta** que o e-mail existe, e é exceção consciente. Ver `Como ficou` da
   `frontend/06`.
+- **A `/parceiros/cadastro` não tem link em tela nenhuma, e a ausência é a decisão** (Kauan,
+  2026-07-21) — não é esquecimento pra alguém "consertar" com um "É um parceiro? Cadastre-se" no
+  login. Quem manda o link é a Widelab, por fora. Um Parceiro sem convênio é organização órfã
+  (convênio é ato da Empresa, `agreements.write`, que nem `platform_admin` tem), e um restaurante
+  que se cadastra sozinho não atende ninguém e ainda ocupa o próprio e-mail pro cadastro combinado
+  que viria depois. O auto-cadastro é atalho pra quem já foi chamado, não porta de descoberta.
 - **A organização ativa é o `orgId` da URL — não há store de "org ativa", e o seletor só navega.**
   O `localStorage` guarda **uma** coisa (`lib/last-org.ts`): o último `orgId` visitado, usado só
   pra decidir o redirect pós-login, e sempre validado contra os vínculos do `/me/contexto` antes de
