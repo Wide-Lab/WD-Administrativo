@@ -1,6 +1,8 @@
 # 11 — Leitura de hodômetro por foto
 
-**Estado:** 📋 escrita, não implementada.
+**Estado:** ✅ implementada (2026-07-22) — 11 dos 12 critérios observados rodando; o **11 não pôde
+ser verificado** (as fotos do spike não estão no repo e não há chave de fornecedor configurada).
+317 testes. Ver [`como-ficou.md`](./como-ficou.md).
 **Depende de:** `backend/10-frota/spec.md` (as tabelas, as capabilities e o `AnyUsageWriter`),
 `backend/05-modulos-e-entitlements/spec.md` (o `mount_module` e o `require_module`),
 `backend/07-testes/spec.md` (a suíte que os critérios estendem).

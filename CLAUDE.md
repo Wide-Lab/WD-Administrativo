@@ -59,7 +59,8 @@ discordarem, o repo vence.
 | 07  | testes automatizados              | ✅  | telas da frota             | ✅  |
 | 08  | gestão de convites (`access`)     | ✅  | gestão da organização      | ✅  |
 | 09  | capabilities de módulo            | ✅  | console da Plataforma      | 📋  |
-| 10  | **frota** (1º app de negócio)     | ✅  | —                          |     |
+| 10  | **frota** (1º app de negócio)     | ✅  | foto do hodômetro          | 📋  |
+| 11  | leitura de hodômetro por foto     | ✅  | —                          |     |
 
 📋 = spec escrita, não implementada. **O estado por spec — o que cada uma entregou, o que deixou
 de dívida e o que bloqueia a seguinte — está no `Índice de specs` da `00-visao-geral.md`**, que é
@@ -77,10 +78,10 @@ a pergunta é "por que assim?", a resposta não está nesta seção.
 
 | Caminho | O que tem | Spec |
 | --- | --- | --- |
-| `backend/src/core/` | config, database, security, tenancy, authz, modules, notifications, exceptions, logging, pagination, types | `backend/01`, `05` |
+| `backend/src/core/` | config, database, security, tenancy, authz, modules, notifications, **storage**, exceptions, logging, pagination, types | `backend/01`, `05`, `11` |
 | `backend/src/modules/auth/` | identidade e sessão: login, logout, `GET /api/me`, `PUT /api/me/password`, CLI de bootstrap. Migration `0001_users` | `backend/02` |
 | `backend/src/modules/access/` | o kernel de autorização: `organizations`, `partner_agreements`, `memberships`, `module_entitlements`, `invitations`. Migrations `0002`–`0005` | `backend/03`–`06`, `08`, `09` |
-| `backend/src/modules/frota/` | 1º app de negócio: `vehicles`, `drivers`, `vehicle_usages`. Migration `0006`. 14 rotas e 7 capabilities namespaced (`frota.*`), importando **só** `src.core` | `backend/10` |
+| `backend/src/modules/frota/` | 1º app de negócio: `vehicles`, `drivers`, `vehicle_usages`, `odometer_readings`. Migrations `0006`–`0007`. 16 rotas e 7 capabilities namespaced (`frota.*`), importando **só** `src.core` | `backend/10`, `11` |
 | `backend/tests/` | `unit/` (regra pura, roda sem Docker) e `integration/` (Postgres efêmero via testcontainers) | `backend/07` |
 | `frontend/src/features/` | `auth`, `context` (casca, nav, guards, seletor de org), `onboarding`, `frota`, `organization` | `frontend/03`–`08` |
 | `frontend/src/styles.css` | a paleta — **o único lugar do repo com hex**. Vitrine viva dos primitivos em `/design-system` | `frontend/02` |
@@ -89,7 +90,9 @@ a pergunta é "por que assim?", a resposta não está nesta seção.
 **Rotas do backend.** `POST /api/auth/login` e `/api/auth/logout`; `/api/me`, `/api/me/password`,
 `/api/me/contexto`; `/api/organizacoes` (`POST`/`GET`) e `/{orgId}`; e sob
 `/api/organizacoes/{orgId}/`: `me`, `membros`, `convenios`, `modulos[/{chave}]`,
-`convites[/{id}]` e `frota/*`. **Públicas:** `GET /api/convites/{token}`,
+`convites[/{id}]` e `frota/*` — que inclui `veiculos/{id}/hodometro/leituras` (upload multipart) e
+`usos/{id}/hodometro/{saida|chegada}` (os bytes da foto, **nunca URL pré-assinada**).
+**Públicas:** `GET /api/convites/{token}`,
 `POST /api/convites/{token}/aceitar`, `POST /api/parceiros/cadastro`.
 
 As migrations ficam em `backend/migrations/versions/` — **fora de `src/`**. A `0002` **semeia a
@@ -150,10 +153,11 @@ e uma rota-placeholder atrás do `ModuleGuard`, nada mais. Não assuma: confirme
 
   Ganhar linha extra no `mount_routes` é **privilégio de kernel** — app de negócio consome
   `CurrentUserDep`/`CurrentOrganizationDep`/`require_permission(...)`/`require_module(...)` e
-  pronto, sem tocar `core`; plugar é `mount_module(api, <descritor>)`, uma linha. A porta de
-  e-mail (`core/notifications/`) é a exceção que confirma a regra: não ganha linha porque e-mail
-  é infra, não tabela de módulo — o default é um `LoggingEmailSender`, então em dev o convite
-  sai no log, não na caixa de entrada. Ver `backend/06` e `backend/09`.
+  pronto, sem tocar `core`; plugar é `mount_module(api, <descritor>)`, uma linha. **Porta de infra
+  não conta**, e são duas: `core/notifications/` (e-mail) e `core/storage/` (arquivo). Nenhuma
+  ganha linha, porque nenhuma é tabela de módulo — o `core` as resolve pela config, e as duas têm
+  default que funciona sem serviço nenhum. Em dev o convite sai no log e a foto vai pro disco.
+  Ver `backend/06`, `09` e `11`.
 - **Autorização entra por capability, não por papel.** Rota e guard nomeiam a permissão
   (`require_permission("agreements.write")`); quem decide qual papel a tem é
   `PERMISSIONS_BY_ROLE`, no `access`. O `core` não conhece papel nenhum, e `Permission` é `str`
@@ -171,8 +175,11 @@ e uma rota-placeholder atrás do `ModuleGuard`, nada mais. Não assuma: confirme
   prefixo `T0xx`. E-mail é `CITEXT`; senha é **Argon2id**, nunca bcrypt. Model de módulo novo
   entra em `migrations/env.py`, senão o `--autogenerate` propõe dropar as tabelas dele. **FK que
   cruza módulo vive só na migration** (`memberships.user_id`, `module_entitlements.granted_by`,
-  as três `fk_*_organization` da frota) — declará-la no model faria módulo importar módulo. Como
-  consequência o **`alembic check` não é verde e não será**: ele propõe dropar essas seis. Recuse.
+  `invitations.invited_by`, as quatro `fk_*_organization` da frota) — declará-la no model faria
+  módulo importar módulo. Como consequência o **`alembic check` não é verde e não será**: ele
+  propõe dropar essas **sete**. Recuse. FK **interna** a um módulo é o caso oposto — vive no model,
+  e esquecê-la lá infla a lista sem ninguém notar, que é o que quase aconteceu na `0007`. O número
+  não é folclore: **rode o comando** em vez de repetir o que está escrito aqui.
 - **Mexeu no mapa, mexe na migration.** `ROLES_BY_ORGANIZATION_TYPE` (em
   `access/domain/permissions.py`) é espelhado por um `CHECK` **gerado** em `memberships` — o banco
   é quem garante que papel só vale no tipo de organização certo. Mesma disciplina do outro lado:

@@ -6,7 +6,12 @@ from datetime import datetime
 
 from src.modules.frota.domain.entities import DriverStatus, VehicleStatus
 
-__all__ = ["DriverFilters", "VehicleFilters", "VehicleUsageFilters"]
+__all__ = [
+    "DriverFilters",
+    "OdometerReadingFilters",
+    "VehicleFilters",
+    "VehicleUsageFilters",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +22,17 @@ class VehicleFilters:
 @dataclass(frozen=True, slots=True)
 class DriverFilters:
     status: DriverStatus | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OdometerReadingFilters:
+    """Não há rota que liste leituras — e é decisão da spec 11: uma tela que lista fotos soltas é
+    arquivo, não produto, e a foto aparece **na viagem**, que é onde ela significa alguma coisa.
+
+    Isto existe porque o `TenantScopedRepository` do `core` é genérico sobre um tipo de filtro, e
+    um repositório sem filtro nenhum não tem como se declarar."""
+
+    vehicle_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)

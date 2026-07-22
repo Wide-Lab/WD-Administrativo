@@ -10,10 +10,12 @@ que o kernel usa: nenhuma linha no `access`, nenhuma mudança no `core`."""
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, status
+from fastapi import APIRouter, File, Path, Query, Response, UploadFile, status
 from pydantic import AwareDatetime
 
 from src.core.security import CurrentUserDep
+from src.core.storage import ObjectStorageDep
+from src.core.tenancy import CurrentOrganizationDep
 from src.modules.frota.adapters.http.dependencies import UsageScopeDep
 from src.modules.frota.adapters.http.schemas import (
     CloseUsageRequest,
@@ -22,6 +24,7 @@ from src.modules.frota.adapters.http.schemas import (
     CreateVehicleRequest,
     DriverResponse,
     MileageReportResponse,
+    OdometerReadingResponse,
     PageResponse,
     UpdateDriverRequest,
     UpdateUsageRequest,
@@ -33,6 +36,7 @@ from src.modules.frota.adapters.http.types import (
     AnyUsageWriterDep,
     DriverReaderDep,
     DriverWriterDep,
+    OdometerReaderDep,
     PageParamsDep,
     UnitOfWorkDep,
     UsageReaderDep,
@@ -45,6 +49,7 @@ from src.modules.frota.application.dtos.commands import (
     CreateDriverCommand,
     CreateUsageCommand,
     CreateVehicleCommand,
+    ReadOdometerCommand,
     UpdateDriverCommand,
     UpdateUsageCommand,
     UpdateVehicleCommand,
@@ -60,11 +65,16 @@ from src.modules.frota.application.use_cases.create_usage import CreateUsageUseC
 from src.modules.frota.application.use_cases.create_vehicle import CreateVehicleUseCase
 from src.modules.frota.application.use_cases.delete_usage import DeleteUsageUseCase
 from src.modules.frota.application.use_cases.get_driver import GetDriverUseCase
+from src.modules.frota.application.use_cases.get_usage_photo import (
+    GetUsagePhotoUseCase,
+    PhotoSide,
+)
 from src.modules.frota.application.use_cases.get_vehicle import GetVehicleUseCase
 from src.modules.frota.application.use_cases.list_drivers import ListDriversUseCase
 from src.modules.frota.application.use_cases.list_usages import ListUsagesUseCase
 from src.modules.frota.application.use_cases.list_vehicles import ListVehiclesUseCase
 from src.modules.frota.application.use_cases.mileage_report import MileageReportUseCase
+from src.modules.frota.application.use_cases.read_odometer import ReadOdometerUseCase
 from src.modules.frota.application.use_cases.update_driver import UpdateDriverUseCase
 from src.modules.frota.application.use_cases.update_usage import UpdateUsageUseCase
 from src.modules.frota.application.use_cases.update_vehicle import UpdateVehicleUseCase
@@ -159,6 +169,49 @@ async def update_vehicle(
     )
 
     return VehicleResponse.from_entity(vehicle)
+
+
+@router.post(
+    "/veiculos/{id}/hodometro/leituras",
+    status_code=status.HTTP_201_CREATED,
+)
+async def read_odometer(
+    user: CurrentUserDep,
+    organization: CurrentOrganizationDep,
+    _: AnyUsageWriterDep,
+    uow: UnitOfWorkDep,
+    storage: ObjectStorageDep,
+    reader: OdometerReaderDep,
+    vehicle_id: Annotated[uuid.UUID, Path(alias="id")],
+    foto: Annotated[UploadFile, File()],
+) -> OdometerReadingResponse:
+    """Fotografa o painel e devolve o número — guardando a foto como evidência.
+
+    **Aninhada no veículo** porque sem saber o carro não há prior, e sem prior a resposta é um
+    número solto em vez de uma frase conferível ("li 45.210, o último registrado foi 45.180, +30
+    km"). Na tela o veículo já está escolhido acima do campo de hodômetro.
+
+    **Nenhuma capability nova**, e isso é decisão: ler hodômetro é parte de lançar viagem, e um
+    `frota.odometer.read` separado poderia ser concedido a quem não pode lançar nada — um direito
+    que não existe. O guard é o mesmo `AnyUsageWriterDep` do `POST /usos`.
+
+    Responde **201 mesmo quando o motor se absteve** (`valor: null`): a leitura aconteceu, o
+    resultado é "não sei", e a foto serve de evidência do mesmo jeito. As recusas de verdade são
+    413 (acima de 8 MB), 415 (formato fora da lista), 422 (bytes que não decodificam, veículo
+    inativo) e 429 (mais de 30 leituras por hora) — e nenhuma delas grava linha nem objeto."""
+
+    use_case = ReadOdometerUseCase(uow=uow, storage=storage, reader=reader)
+    outcome = await use_case.execute(
+        command=ReadOdometerCommand(
+            vehicle_id=vehicle_id,
+            content=await foto.read(),
+            content_type=foto.content_type or "",
+        ),
+        user_id=user.id,
+        organization_id=organization.id,
+    )
+
+    return OdometerReadingResponse.from_outcome(outcome)
 
 
 # --------------------------------------------------------------------------------------------
@@ -315,6 +368,8 @@ async def create_usage(
             end_odometer=body.end_odometer,
             purpose=body.purpose,
             notes=body.notes,
+            start_reading_id=body.leitura_saida_id,
+            end_reading_id=body.leitura_chegada_id,
         ),
         scope=scope,
         user_id=user.id,
@@ -373,12 +428,47 @@ async def close_usage(
     use_case = CloseUsageUseCase(uow=uow)
     usage = await use_case.execute(
         usage_id=usage_id,
-        command=CloseUsageCommand(ended_at=body.ended_at, end_odometer=body.end_odometer),
+        command=CloseUsageCommand(
+            ended_at=body.ended_at,
+            end_odometer=body.end_odometer,
+            end_reading_id=body.leitura_chegada_id,
+        ),
         scope=scope,
         user_id=user.id,
     )
 
     return UsageResponse.from_entity(usage)
+
+
+@router.get("/usos/{id}/hodometro/{qual}")
+async def get_usage_photo(
+    user: CurrentUserDep,
+    scope: UsageScopeDep,
+    uow: UnitOfWorkDep,
+    storage: ObjectStorageDep,
+    usage_id: Annotated[uuid.UUID, Path(alias="id")],
+    side: Annotated[PhotoSide, Path(alias="qual")],
+) -> Response:
+    """A foto do painel desta viagem, **em bytes, pela API**.
+
+    **Não é URL pré-assinada**, e é decisão: presigned vaza uma URL que funciona por fora do
+    `require_module` e do vínculo de tenant durante todo o TTL — mandada num grupo de WhatsApp,
+    abre pra qualquer um. O volume aqui (uma foto por viagem, vista raramente) não paga esse
+    risco.
+
+    O escopo é o de `GET /usos`: quem tem `usages.read` vê de toda a Empresa, quem não tem vê só
+    as viagens do próprio condutor — e o que ele nega é **404**, não 403, porque um 403
+    confirmaria que a viagem de outro condutor existe."""
+
+    use_case = GetUsagePhotoUseCase(uow=uow, storage=storage)
+    content, content_type = await use_case.execute(
+        usage_id=usage_id,
+        side=side,
+        scope=scope,
+        user_id=user.id,
+    )
+
+    return Response(content=content, media_type=content_type)
 
 
 @router.delete("/usos/{id}", status_code=status.HTTP_204_NO_CONTENT)

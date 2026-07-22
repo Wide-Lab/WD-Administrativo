@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from src.core.exceptions import ValidationAppError
 from src.modules.frota.application.dtos.commands import CreateUsageCommand
 from src.modules.frota.application.ports.unit_of_work import FrotaUnitOfWorkProtocol
+from src.modules.frota.application.reading_link import ensure_reading_usable
 from src.modules.frota.application.usage_scope import UsageScope, resolve_writable_driver_id
 from src.modules.frota.domain.entities import NewVehicleUsage, VehicleUsage
 from src.modules.frota.domain.rules import is_future
@@ -87,6 +88,17 @@ class CreateUsageUseCase:
                     f"O condutor {driver.name} está inativo e não pode receber uma viagem nova."
                 )
 
+            # As fotos, quando vieram. O `start_odometer` continua saindo do **corpo**, e não da
+            # leitura: quem decide o número é a pessoa que confirmou na tela. A leitura é anexo,
+            # não fonte.
+            for reading_id in (command.start_reading_id, command.end_reading_id):
+                await ensure_reading_usable(
+                    readings=uow.readings,
+                    usages=uow.usages,
+                    reading_id=reading_id,
+                    vehicle_id=command.vehicle_id,
+                )
+
             usage = await uow.usages.create(
                 NewVehicleUsage(
                     vehicle_id=command.vehicle_id,
@@ -98,6 +110,8 @@ class CreateUsageUseCase:
                     purpose=command.purpose,
                     notes=command.notes,
                     created_by=user_id,
+                    start_reading_id=command.start_reading_id,
+                    end_reading_id=command.end_reading_id,
                 )
             )
             await uow.commit()

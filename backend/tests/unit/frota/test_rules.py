@@ -4,10 +4,14 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from src.modules.frota.domain.rules import (
+    PLAUSIBLE_MAX_DELTA_KM,
     MileageGroupBy,
     UsageForReport,
     is_future,
+    is_plausible,
     normalize_plate,
+    odometer_delta,
+    storage_key_for,
     summarize_mileage,
 )
 
@@ -188,3 +192,74 @@ class TestSummarizeMileage:
         )
 
         assert resumo.groups[0].total_km == 150
+
+
+class TestIsPlausible:
+    """As bordas do `plausivel`, que é o critério 8 — e o ponto dele é que **nenhuma** delas vira
+    4xx. O sinal é pra tela; a spec 10 já decidiu que divergência de hodômetro é aviso."""
+
+    ULTIMO = 45_180
+
+    def test_igual_ao_ultimo_e_plausivel(self) -> None:
+        """O carro que não rodou desde o último registro. Borda inclusiva de baixo."""
+
+        assert is_plausible(self.ULTIMO, self.ULTIMO) is True
+
+    def test_o_teto_de_2000_km_e_plausivel(self) -> None:
+        """`+2000` é o teto, não o primeiro valor recusado — borda inclusiva de cima."""
+
+        assert is_plausible(self.ULTIMO + PLAUSIBLE_MAX_DELTA_KM, self.ULTIMO) is True
+
+    def test_um_quilometro_acima_do_teto_nao_e(self) -> None:
+        assert is_plausible(self.ULTIMO + PLAUSIBLE_MAX_DELTA_KM + 1, self.ULTIMO) is False
+
+    def test_abaixo_do_ultimo_nao_e(self) -> None:
+        """Hodômetro que anda pra trás — o caso que o aviso existe pra mostrar."""
+
+        assert is_plausible(self.ULTIMO - 1, self.ULTIMO) is False
+
+    def test_o_meio_da_faixa_e_plausivel(self) -> None:
+        assert is_plausible(self.ULTIMO + 30, self.ULTIMO) is True
+
+
+class TestOdometerDelta:
+    def test_o_delta_e_a_diferenca(self) -> None:
+        assert odometer_delta(45_210, 45_180) == 30
+
+    def test_sem_valor_lido_nao_ha_delta(self) -> None:
+        """`None` e não `0`: o motor se absteve, e "não sei" não pode virar "não rodou"."""
+
+        assert odometer_delta(None, 45_180) is None
+
+    def test_delta_negativo_e_devolvido_como_e(self) -> None:
+        """Não é clampado pra zero: um hodômetro que andou pra trás é exatamente o que a tela
+        precisa mostrar."""
+
+        assert odometer_delta(45_100, 45_180) == -80
+
+
+class TestStorageKeyFor:
+    """A chave **sempre começa pelo tenant** — não é segurança (a autorização é das rotas), é
+    operação: apagar um tenant ou auditar consumo vira prefixo, não `SELECT`."""
+
+    ORG = uuid.UUID("01890000-0000-7000-8000-000000000001")
+    LEITURA = uuid.UUID("01890000-0000-7000-8000-0000000000ff")
+
+    def test_comeca_pelo_organization_id(self) -> None:
+        chave = storage_key_for(self.ORG, self.LEITURA, "image/jpeg")
+
+        assert chave.startswith(f"{self.ORG}/")
+
+    def test_o_caminho_inteiro(self) -> None:
+        assert (
+            storage_key_for(self.ORG, self.LEITURA, "image/jpeg")
+            == f"{self.ORG}/frota/hodometro/{self.LEITURA}.jpg"
+        )
+
+    def test_a_extensao_segue_o_content_type(self) -> None:
+        """A spec escreve `.jpg` no exemplo, mas PNG e WebP também entram — e um PNG guardado sob
+        `.jpg` confundiria justamente quem abre o bucket, que é o uso operacional que a chave
+        existe pra servir. Ver `Como ficou` da spec 11."""
+
+        assert storage_key_for(self.ORG, self.LEITURA, "image/png").endswith(".png")
+        assert storage_key_for(self.ORG, self.LEITURA, "image/webp").endswith(".webp")

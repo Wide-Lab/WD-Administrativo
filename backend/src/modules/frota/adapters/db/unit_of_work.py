@@ -7,6 +7,7 @@ from src.core.database.unit_of_work import SQLAlchemyUnitOfWork
 from src.core.tenancy import OrganizationId
 from src.modules.frota.adapters.db.repository import (
     DriverRepository,
+    OdometerReadingRepository,
     VehicleRepository,
     VehicleUsageRepository,
 )
@@ -25,6 +26,7 @@ class FrotaUnitOfWork(SQLAlchemyUnitOfWork):
         self._vehicles: VehicleRepository | None = None
         self._drivers: DriverRepository | None = None
         self._usages: VehicleUsageRepository | None = None
+        self._readings: OdometerReadingRepository | None = None
 
     @property
     def vehicles(self) -> VehicleRepository:
@@ -44,11 +46,18 @@ class FrotaUnitOfWork(SQLAlchemyUnitOfWork):
             raise RuntimeError("Repositório de usos não inicializado.")
         return self._usages
 
+    @property
+    def readings(self) -> OdometerReadingRepository:
+        if self._readings is None:
+            raise RuntimeError("Repositório de leituras não inicializado.")
+        return self._readings
+
     async def __aenter__(self) -> Self:
         await super().__aenter__()
         self._vehicles = VehicleRepository(self._session, self._organization_id)
         self._drivers = DriverRepository(self._session, self._organization_id)
         self._usages = VehicleUsageRepository(self._session, self._organization_id)
+        self._readings = OdometerReadingRepository(self._session, self._organization_id)
         return self
 
     async def __aexit__(
@@ -61,3 +70,4 @@ class FrotaUnitOfWork(SQLAlchemyUnitOfWork):
         self._vehicles = None
         self._drivers = None
         self._usages = None
+        self._readings = None

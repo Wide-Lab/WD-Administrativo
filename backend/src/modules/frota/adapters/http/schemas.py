@@ -11,9 +11,11 @@ from datetime import date, datetime
 from pydantic import AwareDatetime, BaseModel, Field
 
 from src.core.pagination.params import Page
+from src.modules.frota.application.use_cases.read_odometer import OdometerReadingOutcome
 from src.modules.frota.domain.entities import (
     Driver,
     DriverStatus,
+    ReadingConfidence,
     Vehicle,
     VehicleStatus,
     VehicleUsage,
@@ -69,6 +71,13 @@ class VehicleResponse(BaseModel):
     initial_odometer: int
     status: VehicleStatus
     created_at: datetime
+    current_odometer: int
+    """O maior hodômetro que o sistema conhece deste carro — **derivado, nunca coluna**.
+
+    É o que dá prior à leitura por foto (sem ele a resposta seria um número solto) e o que faz o
+    campo de hodômetro de saída deixar de nascer vazio na tela. A `frontend/07` recusou derivá-lo
+    de `GET /usos` no navegador pra não criar uma segunda contabilidade de quilometragem lá; aqui
+    ele nasce onde devia."""
 
     @classmethod
     def from_entity(cls, entity: Vehicle) -> VehicleResponse:
@@ -82,6 +91,7 @@ class VehicleResponse(BaseModel):
             initial_odometer=entity.initial_odometer,
             status=entity.status,
             created_at=entity.created_at,
+            current_odometer=entity.current_odometer,
         )
 
 
@@ -152,9 +162,24 @@ class CreateUsageRequest(BaseModel):
     end_odometer: int | None = Field(default=None, ge=0)
     purpose: str | None = None
     notes: str | None = None
+    leitura_saida_id: uuid.UUID | None = None
+    leitura_chegada_id: uuid.UUID | None = None
+    """As fotos do painel, quando houve.
+
+    **Em português, e o resto do corpo em inglês** — a inconsistência é da spec 11, que fixou
+    estes dois nomes, e a `frontend/10` já codifica contra eles. Trocá-los aqui por
+    `start_reading_id` deixaria o contrato divergente das duas specs de uma vez; o custo de
+    seguí-los é a esquisitice de ler `vehicle_id` e `leitura_saida_id` no mesmo corpo. Ver
+    `Como ficou`.
+
+    Opcionais e assim permanecem: quem quiser digitar, digita. Um módulo que exigisse foto pra
+    lançar viagem teria trocado uma folha de papel por uma catraca."""
 
 
 class UpdateUsageRequest(BaseModel):
+    """**Sem os campos de leitura, e é decisão.** Corrigir a foto de uma viagem já lançada é caso
+    raro o bastante pra esperar quem peça — então não há rota, e a ausência aqui é o que garante
+    isso sem um `if`."""
     vehicle_id: uuid.UUID | None = None
     driver_id: uuid.UUID | None = None
     started_at: AwareDatetime | None = None
@@ -173,6 +198,8 @@ class CloseUsageRequest(BaseModel):
 
     ended_at: AwareDatetime
     end_odometer: int = Field(ge=0)
+    leitura_chegada_id: uuid.UUID | None = None
+    """A foto de chegada, quando houve. Omiti-la **não apaga** uma que já estivesse lá."""
 
 
 class UsageResponse(BaseModel):
@@ -191,6 +218,14 @@ class UsageResponse(BaseModel):
     notes: str | None
     created_by: uuid.UUID
     created_at: datetime
+    start_reading_id: uuid.UUID | None
+    end_reading_id: uuid.UUID | None
+    """Se esta viagem tem foto de painel, e de qual lado.
+
+    A spec 11 não os lista na resposta, mas a `frontend/10` precisa deles: o ícone de foto na
+    lista de viagens só aparece quando há foto, e derivá-lo de uma chamada por linha seria N+1 na
+    tela. São ids, não URLs — os bytes seguem saindo só por
+    `GET /usos/{id}/hodometro/{saida|chegada}`, atrás dos guards."""
 
     @classmethod
     def from_entity(cls, entity: VehicleUsage) -> UsageResponse:
@@ -208,6 +243,56 @@ class UsageResponse(BaseModel):
             notes=entity.notes,
             created_by=entity.created_by,
             created_at=entity.created_at,
+            start_reading_id=entity.start_reading_id,
+            end_reading_id=entity.end_reading_id,
+        )
+
+
+_CONFIANCA = {
+    ReadingConfidence.HIGH: "alta",
+    ReadingConfidence.MEDIUM: "media",
+    ReadingConfidence.LOW: "baixa",
+}
+"""O enum do banco (`high`/`medium`/`low`) traduzido pro rótulo da API.
+
+A spec 11 escreve `"confianca": "alta"` e `"baixa"` na resposta; `"media"` vai **sem acento**,
+como todo valor de enum que o frontend compara por igualdade neste projeto. As colunas seguem em
+inglês, como manda o `CLAUDE.md` — quem fala português aqui é a borda HTTP."""
+
+
+class OdometerReadingResponse(BaseModel):
+    """O que a leitura por foto devolve — **201, sempre que a foto foi guardada**.
+
+    Os nomes vêm em português porque a spec 11 os fixou assim e a `frontend/10` já os consome.
+
+    Note o que **não** está aqui: o `note` do motor. Ele é material de diagnóstico nosso, vai pro
+    log, e devolvê-lo daria à tela um texto de fornecedor pra exibir sem querer."""
+
+    id: uuid.UUID
+    valor: int | None
+    """`null` quando o motor se absteve — e ainda assim **201 com a foto guardada**: a leitura
+    aconteceu, o resultado é "não sei", e a foto serve de evidência do mesmo jeito."""
+
+    confianca: str
+    plausivel: bool
+    """`ultimo_hodometro <= valor <= ultimo_hodometro + 2000`.
+
+    **É sinal, nunca bloqueio**: `false` responde 201 com o número lido. A spec 10 já decidiu que
+    divergência de hodômetro é aviso — travar faria o usuário inventar um número, que é pior que
+    o buraco."""
+
+    ultimo_hodometro: int
+    delta: int | None
+
+    @classmethod
+    def from_outcome(cls, outcome: OdometerReadingOutcome) -> OdometerReadingResponse:
+        return cls(
+            id=outcome.reading.id,
+            valor=outcome.reading.value_read,
+            confianca=_CONFIANCA[outcome.reading.confidence],
+            plausivel=outcome.plausible,
+            ultimo_hodometro=outcome.last_odometer,
+            delta=outcome.delta,
         )
 
 

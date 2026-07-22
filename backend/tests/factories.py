@@ -34,9 +34,10 @@ from src.modules.access.domain.entities import (
 from src.modules.auth.adapters.db.models import User as UserModel
 from src.modules.auth.domain.entities import UserStatus
 from src.modules.frota.adapters.db.models import Driver as DriverModel
+from src.modules.frota.adapters.db.models import OdometerReading as OdometerReadingModel
 from src.modules.frota.adapters.db.models import Vehicle as VehicleModel
 from src.modules.frota.adapters.db.models import VehicleUsage as VehicleUsageModel
-from src.modules.frota.domain.entities import DriverStatus, VehicleStatus
+from src.modules.frota.domain.entities import DriverStatus, ReadingConfidence, VehicleStatus
 
 DEFAULT_PASSWORD = "senha-de-teste-123"
 """A senha de quem a factory cria. Oito caracteres ou mais — a política do `PUT /api/me/password`
@@ -321,6 +322,46 @@ async def make_usage(
     await session.commit()
 
     return usage
+
+
+async def make_reading(
+    session: AsyncSession,
+    *,
+    organization: OrganizationModel,
+    vehicle: VehicleModel,
+    created_by: uuid.UUID,
+    storage_key: str | None = None,
+    value_read: int | None = 45_210,
+    confidence: ReadingConfidence = ReadingConfidence.HIGH,
+    engine: str = "stub",
+    created_at: datetime | None = None,
+) -> OdometerReadingModel:
+    """Uma leitura de hodômetro já gravada.
+
+    `created_at` é parâmetro porque a purga de órfãs mede **idade**: sem poder plantar uma leitura
+    de 25 horas atrás, o critério 12 não teria como ser testado sem esperar um dia.
+
+    A factory escreve só a linha, **não o objeto** — quem quiser conferir os dois lados põe a foto
+    no storage do teste. É o mesmo princípio das outras: montar cenário não passa pela rota que o
+    teste põe em dúvida."""
+
+    reading = OdometerReadingModel(
+        id=uuid.uuid7(),
+        organization_id=organization.id,
+        vehicle_id=vehicle.id,
+        storage_key=storage_key or f"{organization.id}/frota/hodometro/{uuid.uuid4()}.jpg",
+        value_read=value_read,
+        confidence=confidence,
+        engine=engine,
+        created_by=created_by,
+    )
+    if created_at is not None:
+        reading.created_at = created_at
+
+    session.add(reading)
+    await session.commit()
+
+    return reading
 
 
 async def make_invitation(

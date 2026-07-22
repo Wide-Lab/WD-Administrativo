@@ -20,6 +20,8 @@ _TABELAS_ESPERADAS = {
     "vehicles",
     "drivers",
     "vehicle_usages",
+    # Da leitura de hodômetro por foto (spec 11).
+    "odometer_readings",
 }
 
 
@@ -40,7 +42,7 @@ async def test_upgrade_head_sobe_do_zero_num_banco_vazio(session: AsyncSession) 
 async def test_o_banco_esta_na_ultima_migration(session: AsyncSession) -> None:
     result = await session.execute(sa.text("SELECT version_num FROM alembic_version"))
 
-    assert result.scalars().one() == "0006_frota"
+    assert result.scalars().one() == "0007_odometer_readings"
 
 
 async def test_a_extensao_btree_gist_existe(session: AsyncSession) -> None:
@@ -109,3 +111,39 @@ async def test_a_fk_de_memberships_para_users_existe(session: AsyncSession) -> N
     )
 
     assert "fk_memberships_user" in set(result.scalars().all())
+
+
+async def test_as_fks_de_odometer_readings_existem(session: AsyncSession) -> None:
+    """A `0007` traz **uma** FK que cruza módulo — a sétima da allowlist do `alembic check`.
+
+    `fk_odometer_readings_organization` aponta pra `organizations`, que é do `access`, e por isso
+    vive só na migration: um `--autogenerate` vai propor dropá-la, e a resposta é recusar. A de
+    veículo é interna ao `frota` e vive no model — está aqui pro teste falar das duas de uma vez,
+    e pra a distinção entre elas não virar folclore."""
+
+    result = await session.execute(
+        sa.text(
+            "SELECT conname FROM pg_constraint "
+            "WHERE conrelid = 'odometer_readings'::regclass AND contype = 'f'"
+        )
+    )
+    fks = set(result.scalars().all())
+
+    assert "fk_odometer_readings_organization" in fks
+    assert "fk_odometer_readings_vehicle" in fks
+
+
+async def test_as_fks_de_vehicle_usages_para_leitura_existem(session: AsyncSession) -> None:
+    """As duas FKs compostas que amarram a foto à viagem. Internas ao `frota`, então vivem no
+    model **e** na migration — e não entram na allowlist."""
+
+    result = await session.execute(
+        sa.text(
+            "SELECT conname FROM pg_constraint "
+            "WHERE conrelid = 'vehicle_usages'::regclass AND contype = 'f'"
+        )
+    )
+    fks = set(result.scalars().all())
+
+    assert "fk_vehicle_usages_start_reading" in fks
+    assert "fk_vehicle_usages_end_reading" in fks

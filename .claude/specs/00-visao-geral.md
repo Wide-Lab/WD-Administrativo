@@ -192,7 +192,20 @@ com as telas. **O que a frota cobrou de dívida foi a fronteira**: `PageResponse
 critério da spec proibia promovê-los ao `core` — então estão duplicados, e Refeições vai duplicar
 de novo. Promovê-los é spec própria. E descobriu-se que o **`alembic check` nunca esteve limpo**:
 as FKs que cruzam módulo vivem só na migration desde a `0003`, e ele propõe dropar seis delas —
-o que a spec de CI vai ter que tratar com allowlist.
+o que a spec de CI vai ter que tratar com allowlist. **A `backend/11` levou a lista pra sete**, e
+a `0007` mostrou que o número não é folclore: a primeira versão dela deixava **oito**, porque uma
+FK interna ao `frota` tinha ficado fora do model por engano. Quem mexer nisso rode o comando.
+
+**Em 2026-07-22 a `backend/11` entregou a leitura de hodômetro por foto**, e ela é a primeira spec
+do projeto a fechar com um critério de aceite **em aberto e assumido**. Todo o desenho está de pé
+e testado — porta de storage no `core`, porta de leitura no módulo, `current_odometer` derivado
+sem N+1, a foto como evidência — mas o motor de verdade nunca rodou: as fotos do bake-off que a
+spec cita **nunca foram commitadas** (`.claude/spikes/` não existe no repo) e não há chave de
+fornecedor. Sem ela o sistema **se abstém**, que é o comportamento honesto e o que faz o formulário
+continuar utilizável. Isso deixa duas lições registradas: **anexo de spec tem que ir pro repo na
+mesma entrega** (a tabela de medição do Tesseract hoje não é reproduzível a partir deste clone), e
+**código atrás de porta ainda é código não exercitado** — o adaptador da OpenAI e o do S3 estão os
+dois nessa categoria.
 
 **A `/parceiros/cadastro` não tem link em lugar nenhum, e isso é decisão** (Kauan, 2026-07-21).
 A `frontend/06` a entregou funcionando e nenhuma tela aponta pra ela — chega-se por URL direta, e
@@ -304,14 +317,20 @@ Backend:
 9. ✅ `backend/09-capabilities-de-modulo/spec.md` — o mecanismo que liga capability declarada por um módulo a papel: o descritor declara `grants` (papel→capabilities) e o `PermissionReader` soma os descritores do registry ao mapa do kernel. Sem migration. **O furo que a `05` registrou, fechado — a `backend/10` está destravada.** Capability de módulo é namespaced pela chave e módulo não concede a `platform_admin`; as duas violações derrubam a subida. 86 testes. Fica de dívida a soma duplicada entre o reader e o `/me` — ver `Como ficou`.
 10. ✅ `backend/10-frota/spec.md` — o **primeiro app de negócio**: veículos, condutores, registro de uso (retroativo) e relatório de quilometragem. Migration `0006`, com a constraint de exclusão que impede sobreposição de período no mesmo veículo. **O contrato de plugagem das `05`/`09` provado num módulo de verdade: zero mudança em `src/core`.** 216 testes. Ficam de dívida a duplicação de `PageResponse`/`get_page_params`/`_pg_enum` (a fronteira cobrou) e o `alembic check`, que **já não estava limpo antes** — ver `Como ficou`. As telas são spec de frontend própria.
 
-11. 📋 `backend/11-leitura-de-hodometro/spec.md` — fotografar o painel e receber o número: a porta
+11. ✅ `backend/11-leitura-de-hodometro/spec.md` — fotografar o painel e receber o número: a porta
     `ObjectStorage` no **`core`** (MinIO em produção, disco local de default — o gêmeo do
     `LoggingEmailSender`), a porta `OdometerReader` no `frota` com adaptador OpenAI, e o
     `current_odometer` derivado que **fecha o item que a `frontend/07` pôs fora de escopo**.
-    Migration `0007`, sem capability nova. O caminho **sem IA foi medido e descartado** — Tesseract
-    `eng` e `ssd` não produziram o valor correto em nenhuma das 6 fotos, nem entre os candidatos
-    (`.claude/spikes/hodometro-ocr/`); o lado multimodal **não foi medido**, e por isso o critério
-    11 exige a leitura funcionando sobre fotos reais antes de fechar.
+    Migration `0007`, sem capability nova. **Implementada em 2026-07-22**, 317 testes — e com
+    **um critério em aberto, o mais importante**: o `11` pede a leitura funcionando sobre fotos
+    reais, e nem as fotos (`.claude/spikes/` **nunca foi commitado**) nem a chave de fornecedor
+    existem neste repo. O `OpenAIOdometerReader` **nunca falou com a OpenAI**; o desenho inteiro
+    está testado contra o stub, e o motor é a peça por provar. Sem chave, a leitura **se abstém**
+    e o formulário segue utilizável — o gêmeo do convite que sai no log. A allowlist do
+    `alembic check` foi de seis pra **sete**, conferida rodando. Ficam de dívida os dois
+    adaptadores nunca exercitados (OpenAI e S3) e uma corrida estreita em "leitura já apontada por
+    outra viagem", que é a única invariante desta spec fora do banco — ver `Como ficou`.
+    **A `frontend/10` está destravada.**
 
 Frontend:
 
@@ -326,7 +345,8 @@ Frontend:
 9. 📋 `frontend/09-console-da-plataforma/spec.md` — tenants e módulos vendidos, dentro da `/plataforma` e **não** na casca do tenant (é a tela de quem vende). Inspecionar tenant não escreve o `last-org`, senão o pós-login cairia no último cliente inspecionado. **Bloqueada:** uma Empresa recém-provisionada não ganha o primeiro membro por tela nenhuma, e a saída decidida (o e-mail do primeiro admin no `POST /organizacoes`, criando o convite na mesma transação) é **spec de backend ainda não escrita** — implementar a `09` antes dela entregaria o console com o caminho que importa ainda passando por CLI.
 10. 📋 `frontend/10-foto-do-hodometro/spec.md` — o botão de câmera nos diálogos de lançar e encerrar
     viagem, o hodômetro pré-preenchido com a última leitura do veículo, e a foto visível na viagem
-    depois. **Bloqueada por `backend/11`**, sem a qual não há rota nem `current_odometer` — e é ela
+    depois. **Destravada em 2026-07-22**: a `backend/11` entregou as duas rotas, o
+    `current_odometer` e o `plausivel` — e é ela
     que **fecha o "pré-preencher o hodômetro" que a `07` pôs fora de escopo**. O recorte guiado foi
     descartado junto com o caminho sem IA. A leitura é **sugestão, nunca valor**: campo editável nos
     três estados, e `plausivel: false` avisa sem bloquear — um `if` no formulário desfaria pela

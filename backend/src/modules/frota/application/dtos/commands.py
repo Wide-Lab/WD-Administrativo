@@ -15,6 +15,7 @@ __all__ = [
     "CreateDriverCommand",
     "CreateUsageCommand",
     "CreateVehicleCommand",
+    "ReadOdometerCommand",
     "UpdateDriverCommand",
     "UpdateUsageCommand",
     "UpdateVehicleCommand",
@@ -80,6 +81,13 @@ class CreateUsageCommand:
     end_odometer: int | None = None
     purpose: str | None = None
     notes: str | None = None
+    start_reading_id: uuid.UUID | None = None
+    end_reading_id: uuid.UUID | None = None
+    """As fotos de painel, quando houve. **Opcionais e assim permanecem**: quem quiser digitar,
+    digita.
+
+    O `start_odometer` continua vindo do corpo, e **não** da leitura: quem decide o número é a
+    pessoa que confirmou na tela. A leitura é anexo, não fonte."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,3 +111,19 @@ class CloseUsageCommand:
 
     ended_at: datetime
     end_odometer: int
+    end_reading_id: uuid.UUID | None = None
+    """A foto de chegada, quando houve. `None` **não apaga** uma que já estivesse lá."""
+
+
+@dataclass(frozen=True, slots=True)
+class ReadOdometerCommand:
+    """A foto que acabou de subir, ainda em bytes.
+
+    Chega inteira na memória de propósito: a leitura é **síncrona dentro da requisição**, porque
+    assíncrono exigiria worker, fila e polling na tela — infra que o projeto não tem, pra
+    economizar segundos num gesto que a pessoa já está esperando terminar. O teto de 8 MB é o que
+    torna isso seguro."""
+
+    vehicle_id: uuid.UUID
+    content: bytes
+    content_type: str

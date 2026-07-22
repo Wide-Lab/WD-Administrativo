@@ -10,12 +10,15 @@ from fastapi import Depends, Query
 
 from src.core.authz import Permission
 from src.core.authz.context import PermissionReaderDep
+from src.core.config import get_config
 from src.core.database.session import SessionDep
 from src.core.exceptions import ForbiddenError
 from src.core.pagination.params import PageParams
 from src.core.security import CurrentUserDep
 from src.core.tenancy import CurrentOrganization, CurrentOrganizationDep
 from src.modules.frota.adapters.db.unit_of_work import FrotaUnitOfWork
+from src.modules.frota.adapters.odometer.stub import StubOdometerReader
+from src.modules.frota.application.ports.odometer_reader import OdometerReader
 from src.modules.frota.application.usage_scope import UsageScope
 
 
@@ -37,6 +40,34 @@ def get_page_params(
     pela mesma razão. Ver o docstring de `schemas.py`."""
 
     return PageParams(page=page, page_size=page_size)
+
+
+def get_odometer_reader() -> OdometerReader:
+    """O motor de leitura que a config manda.
+
+    **Sem `OPENAI_API_KEY`, devolve o stub que se abstém** — e isso é o desenho, não um buraco.
+    É o gêmeo do `LoggingEmailSender` da spec 06: o fluxo funciona fim a fim em dev sem provedor
+    configurado, e o que sai é honesto ("não consegui ler, digite o número"), não um número
+    inventado que faria a tela parecer pronta.
+
+    A suíte **não passa por aqui**: ela injeta o stub que quer por `dependency_overrides`, e é a
+    porta que garante que nenhum teste fala com a rede."""
+
+    config = get_config()
+
+    if not config.OPENAI_API_KEY:
+        return StubOdometerReader(
+            engine="sem-motor",
+            note="Nenhum motor configurado (OPENAI_API_KEY ausente).",
+        )
+
+    from src.modules.frota.adapters.odometer.openai_reader import OpenAIOdometerReader
+
+    return OpenAIOdometerReader(
+        api_key=config.OPENAI_API_KEY,
+        model=config.OPENAI_MODEL,
+        timeout_seconds=config.ODOMETER_READ_TIMEOUT_SECONDS,
+    )
 
 
 async def granted_permissions(

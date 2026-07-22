@@ -3,6 +3,7 @@ import uuid
 from src.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from src.modules.frota.application.dtos.commands import CloseUsageCommand
 from src.modules.frota.application.ports.unit_of_work import FrotaUnitOfWorkProtocol
+from src.modules.frota.application.reading_link import ensure_reading_usable
 from src.modules.frota.application.usage_scope import UsageScope
 from src.modules.frota.domain.entities import VehicleUsage
 
@@ -48,10 +49,18 @@ class CloseUsageUseCase:
                 if own is None or usage.driver_id != own.id:
                     raise ForbiddenError("Você só pode encerrar as suas próprias viagens.")
 
+            await ensure_reading_usable(
+                readings=uow.readings,
+                usages=uow.usages,
+                reading_id=command.end_reading_id,
+                vehicle_id=usage.vehicle_id,
+            )
+
             closed = await uow.usages.close_if_open(
                 usage_id,
                 ended_at=command.ended_at,
                 end_odometer=command.end_odometer,
+                end_reading_id=command.end_reading_id,
             )
             if not closed:
                 raise ConflictError(

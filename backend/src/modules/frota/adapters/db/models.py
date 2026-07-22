@@ -35,10 +35,10 @@ from sqlalchemy.orm import Mapped, declared_attr, mapped_column
 
 from src.core.database.tenant import TenantScopedBase
 from src.core.tenancy import OrganizationType
-from src.modules.frota.domain.entities import DriverStatus, VehicleStatus
+from src.modules.frota.domain.entities import DriverStatus, ReadingConfidence, VehicleStatus
 
 
-def _pg_enum[EnumT: type[OrganizationType | VehicleStatus | DriverStatus]](
+def _pg_enum[EnumT: type[OrganizationType | VehicleStatus | DriverStatus | ReadingConfidence]](
     enum: EnumT,
     name: str,
 ) -> Enum:
@@ -211,6 +211,69 @@ class Driver(CompanyScopedBase):
     )
 
 
+class OdometerReading(CompanyScopedBase):
+    """Uma foto de painel e o que a máquina leu nela.
+
+    **Esta tabela guarda o que a máquina disse; `vehicle_usages` guarda o que a pessoa
+    confirmou** — os dois separados de propósito. A diferença entre eles é a taxa de erro do motor
+    em produção, nos carros do cliente, e sobrescrever `value_read` com a correção humana apagaria
+    exatamente esse dado."""
+
+    __tablename__ = "odometer_readings"
+
+    __table_args__ = (
+        # O alvo da FK composta de `vehicle_usages` — mesmo papel do `uq_vehicles_id_organization`.
+        UniqueConstraint("id", "organization_id", name="uq_odometer_readings_id_organization"),
+        # Composta com `organization_id`, como as de `vehicle_usages`: é o que torna impossível
+        # anexar a foto do carro da Empresa A a uma leitura da Empresa B. `vehicles` é tabela do
+        # próprio `frota`, então esta FK **vive no model** — e por isso **não** entra na allowlist
+        # do `alembic check`. Só a `fk_odometer_readings_organization`, que aponta pro `access`,
+        # mora exclusivamente na migration.
+        ForeignKeyConstraint(
+            ["vehicle_id", "organization_id"],
+            ["vehicles.id", "vehicles.organization_id"],
+            name="fk_odometer_readings_vehicle",
+        ),
+        Index("ix_odometer_readings_organization_id", "organization_id"),
+        # A purga oportunista varre por organização + idade, e o `count` do limite de 30/hora
+        # varre por autor + idade. Sem este índice as duas viram seq scan a cada leitura.
+        Index("ix_odometer_readings_created", "organization_id", "created_by", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+    )
+
+    vehicle_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+
+    storage_key: Mapped[str] = mapped_column(Text)
+    """Onde a foto está. **Montada pelo servidor**, e nunca vinda do cliente — aceitá-la de fora
+    seria entregar leitura e escrita arbitrárias no bucket. Começa sempre pelo `organization_id`,
+    o que faz apagar um tenant ou auditar consumo virar prefixo, não `SELECT`."""
+
+    value_read: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """`NULL` = o motor se absteve. É resultado, não erro — e a linha (e a foto) são gravadas do
+    mesmo jeito."""
+
+    confidence: Mapped[ReadingConfidence] = mapped_column(
+        _pg_enum(ReadingConfidence, "reading_confidence")
+    )
+
+    engine: Mapped[str] = mapped_column(Text)
+    """`"openai:gpt-4o"`. Gravado porque **o motor vai trocar**, e sem esta coluna as duas
+    populações ficariam misturadas na hora de medir a qualidade da leitura."""
+
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    """Id opaco, **sem FK**, mesma regra de `drivers.user_id`."""
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+
 class VehicleUsage(CompanyScopedBase):
     """Uma viagem registrada.
 
@@ -234,6 +297,23 @@ class VehicleUsage(CompanyScopedBase):
             ["driver_id", "organization_id"],
             ["drivers.id", "drivers.organization_id"],
             name="fk_vehicle_usages_driver",
+        ),
+        # As fotos, quando houve alguma. Compostas pelo mesmo motivo das duas de cima, e também
+        # internas ao `frota` — então também podem viver no model.
+        #
+        # Como `organization_id` é NOT NULL e a coluna de leitura é nullable, o `MATCH SIMPLE`
+        # default do Postgres deixa a linha passar quando a leitura é nula. É o que se quer: a
+        # foto é **opcional**, e um módulo que a exigisse teria trocado uma folha de papel por
+        # uma catraca.
+        ForeignKeyConstraint(
+            ["start_reading_id", "organization_id"],
+            ["odometer_readings.id", "odometer_readings.organization_id"],
+            name="fk_vehicle_usages_start_reading",
+        ),
+        ForeignKeyConstraint(
+            ["end_reading_id", "organization_id"],
+            ["odometer_readings.id", "odometer_readings.organization_id"],
+            name="fk_vehicle_usages_end_reading",
         ),
         CheckConstraint(
             "ended_at IS NULL OR ended_at > started_at",
@@ -293,6 +373,14 @@ class VehicleUsage(CompanyScopedBase):
 
     purpose: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    start_reading_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    end_reading_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    """As fotos de painel desta viagem. Nulas porque a foto é **opcional e continua sendo**.
+
+    A referência mora aqui, e não um `usage_id` em `odometer_readings`, porque a pergunta que o
+    produto faz é "qual a foto **desta** viagem" — e não "esta foto virou o quê". Órfã é leitura
+    que ninguém aponta, e é ela que a purga recolhe."""
 
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     """Quem lançou. Sem FK, mesma regra de `drivers.user_id` — id opaco de identidade."""

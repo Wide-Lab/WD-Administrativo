@@ -13,15 +13,21 @@ from src.core.pagination.params import PageParams
 from src.core.tenancy import CurrentOrganization
 from src.modules.frota.adapters.db.unit_of_work import FrotaUnitOfWork
 from src.modules.frota.adapters.http.dependencies import (
+    get_odometer_reader,
     get_page_params,
     get_unit_of_work,
     require_usage_write,
 )
+from src.modules.frota.application.ports.odometer_reader import OdometerReader
 from src.modules.frota.domain.permissions import FrotaPermissions
 
 UnitOfWorkDep = Annotated[FrotaUnitOfWork, Depends(get_unit_of_work)]
 
 PageParamsDep = Annotated[PageParams, Depends(get_page_params)]
+
+OdometerReaderDep = Annotated[OdometerReader, Depends(get_odometer_reader)]
+"""O motor de leitura. É por este `Depends` que a suíte injeta o stub — e é o que garante que
+nenhum teste fala com a rede."""
 
 VehicleReaderDep = Annotated[
     CurrentOrganization,

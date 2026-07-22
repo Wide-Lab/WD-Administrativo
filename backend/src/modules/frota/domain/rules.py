@@ -10,14 +10,43 @@ from datetime import datetime
 from enum import StrEnum
 
 __all__ = [
+    "ALLOWED_PHOTO_TYPES",
+    "MAX_PHOTO_BYTES",
+    "MAX_PHOTO_PIXELS",
     "MileageGroup",
     "MileageGroupBy",
     "MileageSummary",
+    "PLAUSIBLE_MAX_DELTA_KM",
     "UsageForReport",
     "is_future",
+    "is_plausible",
     "normalize_plate",
+    "odometer_delta",
+    "storage_key_for",
     "summarize_mileage",
 ]
+
+MAX_PHOTO_BYTES = 8 * 1024 * 1024
+"""8 MB. Acima disso é 413, e o frontend reduz pra 1600px antes de subir justamente pra nunca
+chegar aqui."""
+
+MAX_PHOTO_PIXELS = 50_000_000
+"""50 MP **depois de decodificada** — anti-bomba de descompressão. 8 MB de PNG viram gigabytes na
+memória se o servidor decodificar sem olhar, e o teto de bytes sozinho não pega isso."""
+
+ALLOWED_PHOTO_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
+"""**HEIC não entra** (415). O iPhone fotografa em HEIC, mas o frontend reencoda pra JPEG antes de
+subir, então o formato nunca chega aqui — e aceitá-lo custaria `pillow-heif` no container por um
+caminho que ninguém percorre."""
+
+PLAUSIBLE_MAX_DELTA_KM = 2000
+"""O teto de uma viagem única. Acima disso é quase certo erro de leitura ou de digitação.
+
+**É sinal, nunca bloqueio.** Um carro que rodou 2.100 km numa viagem existe, e recusá-lo faria a
+pessoa inventar um número — a spec 10 já decidiu que divergência de hodômetro é aviso, e a foto
+não muda essa decisão."""
+
+_PHOTO_SUFFIXES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 
 def normalize_plate(plate: str) -> str:
@@ -51,6 +80,49 @@ def is_future(moment: datetime, now: datetime) -> bool:
     que sabe onde a viagem foi digitada."""
 
     return moment > now
+
+
+def is_plausible(value: int, last_odometer: int) -> bool:
+    """Se o número lido cabe entre o último hodômetro conhecido e ele mais 2.000 km.
+
+    ```
+    plausivel = ultimo_hodometro <= valor <= ultimo_hodometro + 2000
+    ```
+
+    Abaixo do último, o hodômetro andou pra trás; muito acima, alguém leu um dígito a mais. As
+    duas bordas são **inclusivas**: `valor == ultimo` é o carro que não rodou desde o último
+    registro (plausível), e `ultimo + 2000` é o teto, não o primeiro valor recusado.
+
+    **O resultado nunca vira 4xx** — ele é um sinal pra tela, que mostra um aviso e deixa lançar
+    assim mesmo. Ver `PLAUSIBLE_MAX_DELTA_KM`."""
+
+    return last_odometer <= value <= last_odometer + PLAUSIBLE_MAX_DELTA_KM
+
+
+def odometer_delta(value: int | None, last_odometer: int) -> int | None:
+    """Quantos quilômetros o carro rodou desde o último registro, ou `None` se não houve leitura.
+
+    É o que transforma a resposta de um número solto numa frase conferível — *"li 45.210, o último
+    registrado foi 45.180, +30 km"* — e é o que faz a pessoa confirmar num segundo em vez de
+    reconferir dígito a dígito. Pode ser negativo: hodômetro que anda pra trás é justamente o que
+    o aviso existe pra mostrar."""
+
+    if value is None:
+        return None
+    return value - last_odometer
+
+
+def storage_key_for(organization_id: uuid.UUID, reading_id: uuid.UUID, content_type: str) -> str:
+    """A chave da foto no storage: `{organization_id}/frota/hodometro/{id}.{ext}`.
+
+    **Sempre começa pelo tenant**, e não é segurança (a autorização é das rotas) — é operação:
+    apagar um tenant, auditar consumo ou mover uma Empresa de bucket vira prefixo, não `SELECT`.
+
+    **A chave nunca vem do cliente**, que só conhece o `id` da leitura. Aceitá-la de fora seria
+    entregar leitura e escrita arbitrárias no bucket."""
+
+    suffix = _PHOTO_SUFFIXES.get(content_type, ".bin")
+    return f"{organization_id}/frota/hodometro/{reading_id}{suffix}"
 
 
 class MileageGroupBy(StrEnum):

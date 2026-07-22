@@ -3,6 +3,7 @@ from typing import Protocol, Self
 
 from src.modules.frota.application.ports.repositories import (
     DriverRepositoryProtocol,
+    OdometerReadingRepositoryProtocol,
     VehicleRepositoryProtocol,
     VehicleUsageRepositoryProtocol,
 )
@@ -17,6 +18,9 @@ class FrotaUnitOfWorkProtocol(Protocol):
 
     @property
     def usages(self) -> VehicleUsageRepositoryProtocol: ...
+
+    @property
+    def readings(self) -> OdometerReadingRepositoryProtocol: ...
 
     async def __aenter__(self) -> Self: ...
 

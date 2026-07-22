@@ -4,6 +4,7 @@ A `application` conhece **estes protocolos**, nunca `adapters`. É o que deixa u
 lido (e trocado) sem saber que existe SQLAlchemy do outro lado."""
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
 
@@ -16,8 +17,10 @@ from src.modules.frota.application.dtos.filters import (
 from src.modules.frota.domain.entities import (
     Driver,
     NewDriver,
+    NewOdometerReading,
     NewVehicle,
     NewVehicleUsage,
+    OdometerReading,
     UpdateDriver,
     UpdateVehicle,
     UpdateVehicleUsage,
@@ -28,6 +31,7 @@ from src.modules.frota.domain.rules import UsageForReport
 
 __all__ = [
     "DriverRepositoryProtocol",
+    "OdometerReadingRepositoryProtocol",
     "VehicleRepositoryProtocol",
     "VehicleUsageRepositoryProtocol",
 ]
@@ -85,7 +89,10 @@ class VehicleUsageRepositoryProtocol(Protocol):
         id_: uuid.UUID,
         ended_at: datetime,
         end_odometer: int,
+        end_reading_id: uuid.UUID | None = None,
     ) -> bool: ...
+
+    async def is_reading_referenced(self, reading_id: uuid.UUID) -> bool: ...
 
     async def paginate(
         self,
@@ -98,3 +105,21 @@ class VehicleUsageRepositoryProtocol(Protocol):
         started_from: datetime,
         started_until: datetime,
     ) -> list[UsageForReport]: ...
+
+
+class OdometerReadingRepositoryProtocol(Protocol):
+    """Sem `update`: leitura é o que a máquina disse, e o que a máquina disse não se corrige."""
+
+    async def get_by_id_or_none(self, id_: uuid.UUID) -> OdometerReading | None: ...
+
+    async def create(self, create_command: NewOdometerReading) -> OdometerReading: ...
+
+    async def count_by_user_since(self, user_id: uuid.UUID, since: datetime) -> int: ...
+
+    async def list_orphans(
+        self,
+        older_than: datetime,
+        limit: int,
+    ) -> list[OdometerReading]: ...
+
+    async def delete_many(self, ids: Sequence[uuid.UUID]) -> None: ...

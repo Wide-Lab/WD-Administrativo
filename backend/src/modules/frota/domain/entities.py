@@ -16,9 +16,13 @@ __all__ = [
     "Driver",
     "DriverStatus",
     "NewDriver",
+    "NewOdometerReading",
     "NewVehicle",
     "NewVehicleUsage",
+    "OdometerReading",
+    "ReadingConfidence",
     "UpdateDriver",
+    "UpdateOdometerReading",
     "UpdateVehicle",
     "UpdateVehicleUsage",
     "Vehicle",
@@ -43,13 +47,25 @@ class DriverStatus(StrEnum):
     INACTIVE = "inactive"
 
 
+class ReadingConfidence(StrEnum):
+    """O quanto o motor confia no número que leu.
+
+    Três degraus e não um float porque a tela decide **uma** coisa com isto (mostrar aviso ou
+    não), e um `0.72` obrigaria a inventar o corte em algum lugar — provavelmente em dois lugares
+    diferentes. `LOW` acompanha toda abstenção."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
 @dataclass(frozen=True, slots=True)
 class Vehicle:
     """Um veículo da frota de uma Empresa.
 
-    **Não tem hodômetro atual**, e isso é decisão: ele é derivado (`initial_odometer` ou o maior
-    `end_odometer` registrado). Guardá-lo seria uma segunda fonte da verdade, pronta pra divergir
-    da primeira no primeiro lançamento retroativo fora de ordem."""
+    **Não tem coluna de hodômetro atual**, e isso é decisão: `current_odometer` é derivado, sai
+    por `LEFT JOIN` sobre um agregado e nunca é gravado. Guardá-lo seria uma segunda fonte da
+    verdade, pronta pra divergir da primeira no primeiro lançamento retroativo fora de ordem."""
 
     id: uuid.UUID
     organization_id: uuid.UUID
@@ -60,6 +76,15 @@ class Vehicle:
     initial_odometer: int
     status: VehicleStatus
     created_at: datetime
+    current_odometer: int
+    """O maior hodômetro que o sistema conhece deste carro: o `initial_odometer`, o maior
+    `end_odometer` registrado ou o `start_odometer` de uma viagem **aberta** — o que for maior.
+
+    A viagem aberta entra porque um carro na rua já rodou: ignorá-la faria o prior de um veículo
+    em viagem apontar pra antes da saída.
+
+    **Derivado, nunca coluna** — ver o docstring da classe. Quem o calcula é o repositório, numa
+    query só (sem N+1)."""
 
     @property
     def accepts_new_usage(self) -> bool:
@@ -156,6 +181,16 @@ class VehicleUsage:
     notes: str | None
     created_by: uuid.UUID
     created_at: datetime
+    start_reading_id: uuid.UUID | None = None
+    end_reading_id: uuid.UUID | None = None
+    """As fotos de painel desta viagem, quando houve alguma.
+
+    **Nulas porque a foto é opcional e continua sendo**: quem quiser digitar, digita. Um módulo
+    que exigisse foto pra lançar viagem teria trocado uma folha de papel por uma catraca.
+
+    A referência mora **na viagem**, e não um `usage_id` na leitura, porque a pergunta que o
+    produto faz é "qual a foto **desta** viagem" — e não "esta foto virou o quê". Órfã é leitura
+    que ninguém aponta, e é ela que a purga recolhe."""
 
     @property
     def is_open(self) -> bool:
@@ -187,6 +222,8 @@ class NewVehicleUsage(BaseCreateCommand):
     end_odometer: int | None = None
     purpose: str | None = None
     notes: str | None = None
+    start_reading_id: uuid.UUID | None = None
+    end_reading_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,7 +231,11 @@ class UpdateVehicleUsage(BaseUpdateCommand):
     """Sem `created_by`: quem lançou é registro, não campo editável.
 
     `vehicle_id` e `driver_id` entram porque corrigir o carro ou o condutor de um lançamento
-    errado é caso real — e as FKs compostas garantem que a correção não cruza tenant."""
+    errado é caso real — e as FKs compostas garantem que a correção não cruza tenant.
+
+    **Sem `start_reading_id`/`end_reading_id` também, e é decisão**: corrigir a foto de uma
+    viagem já lançada é caso raro o bastante pra esperar quem peça, e a ausência aqui é o que
+    faz o `PATCH` não aceitá-los sem precisar de um `if` na rota."""
 
     vehicle_id: uuid.UUID | UnsetType = UNSET
     driver_id: uuid.UUID | UnsetType = UNSET
@@ -204,3 +245,66 @@ class UpdateVehicleUsage(BaseUpdateCommand):
     end_odometer: int | None | UnsetType = UNSET
     purpose: str | None | UnsetType = UNSET
     notes: str | None | UnsetType = UNSET
+
+
+@dataclass(frozen=True, slots=True)
+class OdometerReading:
+    """Uma foto de painel e o que a máquina leu nela.
+
+    **Esta tabela guarda o que a máquina disse; `vehicle_usages` guarda o que a pessoa
+    confirmou.** Os dois separados de propósito: a diferença entre eles é a taxa de erro do motor
+    em produção, nos carros do cliente — a medição que o spike não pôde fazer. Sobrescrever
+    `value_read` com a correção humana apagaria exatamente esse dado.
+
+    A foto fica guardada mesmo quando o motor se absteve: a leitura aconteceu, o resultado é "não
+    sei", e a evidência vale igual."""
+
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    vehicle_id: uuid.UUID
+    storage_key: str
+    """Onde a foto está. **Montada pelo servidor**, sempre — o cliente só conhece o `id`."""
+
+    value_read: int | None
+    """O que o motor leu, ou `None` se ele se absteve. Abster-se é **resposta**, não falha: o que
+    se quer evitar é o palpite confiante que o Tesseract deu em 83% das vezes no spike."""
+
+    confidence: ReadingConfidence
+    engine: str
+    """`"openai:gpt-4o"` — gravado em cada linha porque **o motor vai trocar**, de modelo, de
+    fornecedor, ou pra um local no dia em que compensar. Sem esta coluna, medir a qualidade da
+    leitura depois de uma troca misturaria as duas populações."""
+
+    created_by: uuid.UUID
+    """Id opaco, **sem FK**, como `drivers.user_id`."""
+
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class NewOdometerReading(BaseCreateCommand):
+    """O `id` entra explícito, e é o único comando de criação do projeto que faz isso: a chave de
+    storage é derivada dele, e a foto precisa estar gravada sob a chave certa antes de a linha
+    existir. Deixar o banco sortear o `id` obrigaria a gravar a linha, ler o `id` e só então
+    montar a chave — um `UPDATE` a mais pra nada."""
+
+    id: uuid.UUID
+    vehicle_id: uuid.UUID
+    storage_key: str
+    value_read: int | None
+    confidence: ReadingConfidence
+    engine: str
+    created_by: uuid.UUID
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateOdometerReading(BaseUpdateCommand):
+    """**Vazio de propósito: leitura não se corrige.**
+
+    O que a máquina disse é registro, e sobrescrevê-lo com a correção humana apagaria a única
+    medida de erro do motor em produção — que é justamente o que separar esta tabela de
+    `vehicle_usages` existe pra preservar. A correção da pessoa vira `start_odometer`/
+    `end_odometer` na viagem, do outro lado.
+
+    Existe só porque o `TenantScopedRepository` do `core` é genérico sobre um comando de
+    atualização, e sem nenhum campo ele não tem como ser instanciado com efeito."""
