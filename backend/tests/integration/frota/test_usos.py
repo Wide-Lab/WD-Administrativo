@@ -561,6 +561,63 @@ class TestRegrasQueOBancoNaoAlcanca:
         assert resposta.status_code == 422
         assert "futuro" in resposta.json()["message"].lower()
 
+    async def test_instante_sem_fuso_e_422_e_nao_500(
+        self,
+        como: Como,
+        session: AsyncSession,
+        empresa: OrganizationModel,
+    ) -> None:
+        """O instante **ingênuo** morre na borda, e não lá dentro.
+
+        Era um **500**: o `started_at` sem fuso chegava até `is_future`, que o comparava com um
+        `now()` aware, e o Python recusa comparar os dois. A regressão que este teste prende não é
+        só o crash — é a alternativa tentadora de "normalizar assumindo UTC", que teria trocado o
+        erro barulhento por uma viagem gravada três horas fora do lugar."""
+
+        carro = await make_vehicle(session, organization=empresa)
+        motorista = await make_driver(session, organization=empresa)
+        gestor = await como(role=Role.MANAGER, org=empresa)
+
+        resposta = await gestor.post(
+            f"/api/organizacoes/{empresa.id}/frota/usos",
+            json={
+                "vehicle_id": str(carro.id),
+                "driver_id": str(motorista.id),
+                "started_at": "2026-07-20T08:30:00",
+                "start_odometer": 100,
+            },
+        )
+
+        assert resposta.status_code == 422
+
+    async def test_encerrar_sem_fuso_e_422(
+        self,
+        como: Como,
+        session: AsyncSession,
+        empresa: OrganizationModel,
+    ) -> None:
+        """O mesmo na rota de encerrar, que é o gesto mais frequente do módulo."""
+
+        carro = await make_vehicle(session, organization=empresa)
+        motorista = await make_driver(session, organization=empresa)
+        quem = await make_user(session)
+        viagem = await make_usage(
+            session,
+            organization=empresa,
+            vehicle=carro,
+            driver=motorista,
+            created_by=quem.id,
+            started_at=ONTEM,
+        )
+        gestor = await como(role=Role.MANAGER, org=empresa)
+
+        resposta = await gestor.post(
+            f"/api/organizacoes/{empresa.id}/frota/usos/{viagem.id}/encerrar",
+            json={"ended_at": "2026-07-20T18:00:00", "end_odometer": 200},
+        )
+
+        assert resposta.status_code == 422
+
     async def test_veiculo_inativo_e_422(
         self,
         como: Como,

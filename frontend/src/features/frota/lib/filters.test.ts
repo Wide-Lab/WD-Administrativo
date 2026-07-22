@@ -111,9 +111,21 @@ describe('hasAnyUsageFilter', () => {
 })
 
 describe('o período vira instante antes de ir pro backend', () => {
+  /** O mesmo instante que as bordas do dia devem produzir, montado pelo caminho longo — assim o
+   *  teste não presume o fuso de quem roda a suíte, só que ele é um só. */
+  const localInstant = (
+    year: number,
+    month: number,
+    day: number,
+    hour = 0,
+    minute = 0,
+    second = 0,
+    ms = 0,
+  ) => new Date(year, month - 1, day, hour, minute, second, ms).toISOString()
+
   it('`ate` cobre o dia inteiro — senão toda viagem do próprio dia sumiria da lista', () => {
-    expect(startOfDay('2026-07-20')).toBe('2026-07-20T00:00:00')
-    expect(endOfDay('2026-07-20')).toBe('2026-07-20T23:59:59.999')
+    expect(startOfDay('2026-07-20')).toBe(localInstant(2026, 7, 20))
+    expect(endOfDay('2026-07-20')).toBe(localInstant(2026, 7, 20, 23, 59, 59, 999))
   })
 
   it('a query da API usa os mesmos nomes da URL, com a hora acrescentada', () => {
@@ -126,15 +138,24 @@ describe('o período vira instante antes de ir pro backend', () => {
     })
 
     expect(query.get('veiculo')).toBe(VEICULO)
-    expect(query.get('de')).toBe('2026-07-01T00:00:00')
-    expect(query.get('ate')).toBe('2026-07-31T23:59:59.999')
+    expect(query.get('de')).toBe(localInstant(2026, 7, 1))
+    expect(query.get('ate')).toBe(localInstant(2026, 7, 31, 23, 59, 59, 999))
     expect(query.get('condutor')).toBeNull()
     expect(query.get('abertos')).toBeNull()
   })
 
-  it('sem fuso na string — carimbar `Z` deslocaria o recorte pra quem não está em UTC', () => {
-    expect(startOfDay('2026-07-20')).not.toContain('Z')
-    expect(endOfDay('2026-07-20')).not.toContain('Z')
+  it('**com** fuso na string — sem ele o backend responde 422, e antes calava em UTC', () => {
+    expect(startOfDay('2026-07-20')).toMatch(/Z$/)
+    expect(endOfDay('2026-07-20')).toMatch(/Z$/)
+  })
+
+  it('as bordas são o dia de quem filtra, não o de Greenwich', () => {
+    // Vale em qualquer fuso: o intervalo de um dia tem 24h menos 1ms, e não é UTC-alinhado por
+    // acidente do fuso do runner.
+    const from = new Date(startOfDay('2026-07-20')).getTime()
+    const until = new Date(endOfDay('2026-07-20')).getTime()
+
+    expect(until - from).toBe(24 * 60 * 60 * 1000 - 1)
   })
 })
 

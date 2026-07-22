@@ -38,14 +38,14 @@ ninguém entra.
 
 ¹ **a dívida em aberto do frontend, e ela foi adiada de propósito — agora com a conta maior.**
 Não há testing-library/jsdom: `nav`, `home-path`, os rótulos de erro, a política de senha, os
-schemas zod, as traduções de erro e os filtros de URL têm teste puro (**173**, `npm run test`),
+schemas zod, as traduções de erro e os filtros de URL têm teste puro (**180**, `npm run test`),
 mas casca, guards, `Can`, seletor, os dois formulários de onboarding e agora **as seis telas das
 `07`/`08`** foram verificados só a olho — e as `07`/`08` **nem isso**: foram implementadas sem
 subir a stack, contra os contratos lidos no código do backend, e checadas por `build`. Junto com a
 **CI** (que a `backend/07` deixou encaminhada e que precisa da allowlist do `alembic check`),
 ficou **para depois das telas** — decisão do Kauan em 2026-07-20. Em troca, cada spec de tela
 obriga **teste do que é função pura na própria entrega** (schemas zod, tradução de erro, filtros
-de URL, `buildNav`), e foi o que segurou 112 dos 173. Quem escrever a spec de teste de componente
+de URL, `buildNav`), e foi o que segurou 112 dos 180. Quem escrever a spec de teste de componente
 começa pelo formulário de viagem da `frontend/07`.
 
 **Use a skill `nova-spec`** pra propor uma spec nova e **`implementar-spec`** pra executar
@@ -71,7 +71,7 @@ uma capability declarada por um módulo chega a um papel — 86 testes. E com a 
 `src/core` não mudou em nenhuma linha. Um `manager` cadastra veículo e lança viagem
 porque o `grants` do descritor chega até ele, sem uma linha em `PERMISSIONS_BY_ROLE`. E com a
 `backend/08`, **o convite deixou de ser via só de ida**: listar e revogar viraram rota e o
-`partner_admin` passou a convidar — 235 testes.
+`partner_admin` passou a convidar — 237 testes.
 
 **O desequilíbrio de rota consumida praticamente fechou** (2026-07-21). Com a `frontend/07`, a
 frota tem tela: quatro delas — viagens, veículos, condutores e quilometragem — sob a rota que o
@@ -253,7 +253,8 @@ O que existe hoje:
   `alembic upgrade head` e dá `TRUNCATE` + reseed da org `platform` entre cada teste — `TRUNCATE`
   e não rollback, porque é o que deixa testar a **atomicidade** do auto-cadastro de Parceiro. A
   fixture que decide a ergonomia é `como(role=…, org=…)`: login de verdade, cliente com cookie.
-  **235 testes** depois da `backend/08` (216 + 19 de gestão de convite). Duas fixtures de registry, e a
+  **237 testes** depois da `backend/08` (216 + 19 de gestão de convite + 2 do fuso da frota).
+  Duas fixtures de registry, e a
   diferença importa: `registry_isolado` salva e restaura, `registry_vazio` **também limpa** — quem
   afirma igualdade exata sobre `module_permissions_for(...)` precisa da segunda, porque a frota
   agora concede de verdade e entraria na soma.
@@ -276,6 +277,11 @@ O que existe hoje:
   `tstzrange(started_at, NULL)` é sem limite superior, ela entrega de graça "um veículo, uma
   viagem aberta". O range é `[)`, então devolver o carro às 12h e outro pegá-lo às 12h **não**
   colide. Sobreposição é 409 traduzido de `IntegrityError`, nunca um `SELECT` antes.
+  **Todo instante que entra exige fuso** (`AwareDatetime` nos schemas e nos `de`/`ate`), e um sem
+  fuso é 422 — o servidor não normaliza, porque não sabe onde a viagem foi digitada. O frontend
+  carimba o offset em `features/frota/lib/instants.ts`; a string crua do `<input datetime-local>`
+  **não** vai pra API. Foi um 500 no lançamento em 2026-07-22, e o filtro de período errava calado
+  pelo mesmo motivo — ver o `Como ficou` da `frontend/07`.
 - **Condutor é entidade própria, não `membership`** — o motorista terceirizado dirige e nunca
   loga. `drivers.user_id` é o vínculo opcional com quem tem login, e **não tem FK nenhuma, nem na
   migration**: é o primeiro teste do seam de extração, e uma FK daqui pra `users` é o que tornaria

@@ -8,7 +8,7 @@ envelope sobre a mesma `Page` do `core`. Ver `Como ficou` da spec 10."""
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from src.core.pagination.params import Page
 from src.modules.frota.domain.entities import (
@@ -136,13 +136,19 @@ class CreateUsageRequest(BaseModel):
 
     `started_at` e `ended_at` são **digitados** — não há campo que o relógio do servidor preencha,
     e não existe rota "iniciar viagem agora". `driver_id` omitido significa "eu"; ver o docstring
-    de `CreateUsageCommand`."""
+    de `CreateUsageCommand`.
+
+    **Os instantes exigem fuso** (`AwareDatetime`), e um sem fuso é 422 — nunca uma suposição. O
+    servidor não tem como saber o fuso de quem digitou: assumir o dele gravaria a viagem das 8h
+    de São Paulo às 8h UTC, três horas fora, sem erro nenhum aparecer. Pior, `started_at` ingênuo
+    vinha explodindo em 500 na comparação com o `now()` do use case, que é aware. O cliente sabe o
+    fuso de quem digita e é ele quem carimba o offset."""
 
     vehicle_id: uuid.UUID
-    started_at: datetime
+    started_at: AwareDatetime
     start_odometer: int = Field(ge=0)
     driver_id: uuid.UUID | None = None
-    ended_at: datetime | None = None
+    ended_at: AwareDatetime | None = None
     end_odometer: int | None = Field(default=None, ge=0)
     purpose: str | None = None
     notes: str | None = None
@@ -151,8 +157,8 @@ class CreateUsageRequest(BaseModel):
 class UpdateUsageRequest(BaseModel):
     vehicle_id: uuid.UUID | None = None
     driver_id: uuid.UUID | None = None
-    started_at: datetime | None = None
-    ended_at: datetime | None = None
+    started_at: AwareDatetime | None = None
+    ended_at: AwareDatetime | None = None
     start_odometer: int | None = Field(default=None, ge=0)
     end_odometer: int | None = Field(default=None, ge=0)
     purpose: str | None = None
@@ -161,9 +167,11 @@ class UpdateUsageRequest(BaseModel):
 
 class CloseUsageRequest(BaseModel):
     """Os dois campos **juntos** — é o que a rota própria de encerrar existe pra garantir, e o
-    `ck_vehicle_usages_closed_together` o impõe no banco."""
+    `ck_vehicle_usages_closed_together` o impõe no banco.
 
-    ended_at: datetime
+    Com fuso, pelo mesmo motivo do `CreateUsageRequest`."""
+
+    ended_at: AwareDatetime
     end_odometer: int = Field(ge=0)
 
 

@@ -10,6 +10,8 @@
  * Tudo aqui é função pura, e é a terceira coisa que a spec manda testar nesta entrega.
  */
 
+import { toInstant } from '#/features/frota/lib/instants'
+
 /** Os filtros como a tela os pensa. `null` é "sem filtro" — nunca `''`, que num `URLSearchParams`
  *  vira um parâmetro presente e vazio, e o backend o leria como valor. */
 export type UsageFilters = {
@@ -86,23 +88,25 @@ export function hasAnyUsageFilter(filters: UsageFilters): boolean {
 }
 
 /**
- * Uma data `YYYY-MM-DD` esticada até cobrir o dia inteiro.
+ * Uma data `YYYY-MM-DD` esticada até cobrir o dia inteiro, **no fuso de quem filtra**.
  *
  * **É a correção que faz o filtro de período dizer a verdade.** O backend compara
- * `started_at >= de` e `started_at <= ate` com `datetime`, e uma data crua vira meia-noite: pedir
- * `ate=2026-07-20` excluiria toda viagem do próprio dia 20, e a pessoa juraria que o sistema
+ * `started_at >= de` e `started_at <= ate` com `timestamptz`, e uma data crua vira meia-noite:
+ * pedir `ate=2026-07-20` excluiria toda viagem do próprio dia 20, e a pessoa juraria que o sistema
  * perdeu os lançamentos dela. `de` continua na meia-noite (é o começo do dia mesmo); `ate` vai
  * pro último instante.
  *
- * Sem fuso na string, de propósito: o backend interpreta o horário como o dele, e carimbar um
- * `Z` aqui deslocaria o recorte em algumas horas para quem não está em UTC.
+ * **Com fuso na string** — e antes era sem, o que era o mesmo bug uma vez mais. O comentário que
+ * estava aqui dizia que "o backend interpreta o horário como o dele", e essa era exatamente a
+ * falha: o dele é UTC, então "até 20/07 23:59" virava 20:59 em São Paulo e escondia as viagens do
+ * fim da tarde. O dia é o dia de quem lê a tela, e é `toInstant` que o carimba.
  */
 export function startOfDay(date: string): string {
-  return `${date}T00:00:00`
+  return toInstant(`${date}T00:00:00`)
 }
 
 export function endOfDay(date: string): string {
-  return `${date}T23:59:59.999`
+  return toInstant(`${date}T23:59:59.999`)
 }
 
 /** Os filtros como o backend os quer em `GET /usos`.

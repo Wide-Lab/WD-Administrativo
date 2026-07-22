@@ -289,6 +289,7 @@ usos **encerrados** no período. Usos abertos entram como contagem à parte, nun
 
 | Regra | Resposta |
 |---|---|
+| instante de entrada **sem fuso** | 422 (`AwareDatetime` na borda; ver abaixo) |
 | `started_at` no futuro | 422 (`CHECK` com `now()` é impossível) |
 | veículo `inactive`/`maintenance` recebendo uso novo | 422 (um `CHECK` não enxerga outra tabela) |
 | condutor `inactive` recebendo uso novo | 422 |
@@ -300,6 +301,13 @@ usos **encerrados** no período. Usos abertos entram como contagem à parte, nun
 O 409 da sobreposição é traduzido de `IntegrityError`, e **não** verificado com um `SELECT`
 antes: entre a leitura e a escrita cabe outro lançamento, e a corrida é justamente o caso que a
 constraint existe pra pegar. Mesma decisão do `UPDATE ... WHERE status = 'pending'` da `06`.
+
+**Todo instante que entra exige fuso** (`AwareDatetime` nos schemas e nas query params de período),
+e um sem fuso é 422 — acrescentado em 2026-07-22, depois de um 500 no lançamento. As colunas são
+`timestamptz` e o `now()` do use case é aware; um instante ingênuo ou explodia na comparação ou era
+coagido pra UTC calado, gravando a viagem no fuso errado. O servidor **não** normaliza: ele não sabe
+onde a viagem foi digitada, e essa é a informação que só o cliente tem. Ver o `Como ficou` da
+`frontend/07`, que é onde a decisão errada tinha sido escrita.
 
 ## Testes — na mesma entrega
 

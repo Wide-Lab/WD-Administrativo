@@ -250,6 +250,45 @@ O backend filtra `started_at <= ate`. Uma data pura é meia-noite, então `ate=2
 esconderia **todas** as viagens do próprio dia 20 — o usuário pediria "até hoje" e não veria hoje.
 A tela expande pra `T23:59:59.999`, com teste. Vale pro filtro de viagens e pro relatório.
 
+**A expansão estava certa e o fuso estava errado** — ver a seção do fuso, abaixo.
+
+### O instante ia sem fuso, e isso estava errado (corrigido em 2026-07-22)
+
+**Esta entrega decidiu mandar o instante digitado sem fuso, e a decisão era errada.** Está aqui
+porque foi escrita como escolha justificada, no `startOfDay`/`endOfDay` de `lib/filters.ts`: _"sem
+fuso na string, de propósito: o backend interpreta o horário como o dele, e carimbar um `Z` aqui
+deslocaria o recorte"_. A premissa é que "o dele" fosse o fuso de quem lê a tela. Não é: o
+container roda em UTC.
+
+Apareceu como **500 no "Lançar Viagem"** — o `started_at` ingênuo chegava até `is_future` e batia
+contra um `now()` aware, que o Python recusa comparar. Mas o crash foi o sintoma barato. O caro era
+o filtro de período, onde nada explodia: o Postgres coagia o ingênuo pra UTC calado, e "até 20/07
+23:59" virava 20:59 em São Paulo, escondendo as viagens do fim da tarde **sem erro nenhum**. Foi a
+tela dizendo que não havia lançamento onde havia — exatamente o que a seção do `ate`, acima, existia
+pra evitar.
+
+O conserto, nas duas pontas:
+
+- **Backend** — os instantes de entrada da frota viraram `AwareDatetime` (`started_at`/`ended_at`
+  de criar, editar e encerrar; `de`/`ate` do `GET /usos` e do relatório). Instante sem fuso é
+  **422**, não 500 e não suposição: o servidor não tem como saber onde a viagem foi digitada, e
+  normalizar pra UTC teria trocado o erro barulhento por dado três horas fora do lugar. `is_future`
+  continua pura — quem garante o fuso é a borda.
+- **Frontend** — `features/frota/lib/instants.ts` (`toInstant`/`toInstantOrUndefined`) carimba o
+  offset de quem digitou. `new Date(local)` sobre string **sem** offset é hora local, que é o certo
+  aqui e o oposto do que `isoDatePart` e `formatMoment` querem, onde a mesma string é só texto a
+  recortar — os três casos convivem e a distinção está nos docstrings.
+
+Os testes novos afirmam **equivalência de instante**, nunca string literal (`new Date(2026, 6, 20,
+8, 30).toISOString()`), senão passariam só no fuso de quem rodou a suíte. Do lado do backend, dois
+testes prendem o 422 no lançar e no encerrar, e o docstring de um deles nomeia a alternativa
+tentadora — "normalizar assumindo UTC" — pra que a regressão não volte como conserto.
+
+**A frota é o único lugar do sistema com entrada de data-hora**: no `access` todo `datetime` de
+schema é resposta, e o único `type="date"` fora daqui é `license_expires_at`, que é `date` puro e
+não tem fuso pra errar. O bug estava contido, e o `instants.ts` mora em `features/frota/lib` por
+isso — quando Refeições tiver campo de data-hora, ele sobe pra `src/lib`.
+
 ### A tradução do 409 casa por texto, e isso é dívida de backend
 
 O `core` devolve `code: "conflict"` para os **cinco** conflitos distintos de `vehicle_usages`, e a

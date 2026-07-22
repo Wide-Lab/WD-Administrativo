@@ -9,7 +9,13 @@
  * É aqui, e só aqui, que o `camelCase` do formulário vira o `snake_case` do payload.
  */
 
-import { usageFiltersToApiQuery, type UsageFilters } from '#/features/frota/lib/filters'
+import {
+  endOfDay,
+  startOfDay,
+  usageFiltersToApiQuery,
+  type UsageFilters,
+} from '#/features/frota/lib/filters'
+import { toInstant, toInstantOrUndefined } from '#/features/frota/lib/instants'
 import {
   driverSchema,
   memberSchema,
@@ -219,9 +225,9 @@ export async function createUsage(orgId: string, values: UsageFormValues): Promi
       body: JSON.stringify({
         vehicle_id: values.vehicleId,
         driver_id: values.driverId || undefined,
-        started_at: values.startedAt,
+        started_at: toInstant(values.startedAt),
         start_odometer: values.startOdometer,
-        ended_at: values.endedAt,
+        ended_at: toInstantOrUndefined(values.endedAt),
         end_odometer: values.endOdometer,
         purpose: values.purpose || undefined,
         notes: values.notes || undefined,
@@ -240,7 +246,7 @@ export async function closeUsage(
     await apiFetch<unknown>(`${base(orgId)}/usos/${encodeURIComponent(usageId)}/encerrar`, {
       method: 'POST',
       body: JSON.stringify({
-        ended_at: values.endedAt,
+        ended_at: toInstant(values.endedAt),
         end_odometer: values.endOdometer,
       }),
     }),
@@ -264,8 +270,8 @@ export async function getMileageReport(
   params: { from: string; until: string; groupBy: MileageGroupBy },
 ): Promise<MileageReport> {
   const search = new URLSearchParams({
-    de: `${params.from}T00:00:00`,
-    ate: `${params.until}T23:59:59.999`,
+    de: startOfDay(params.from),
+    ate: endOfDay(params.until),
     agrupar_por: params.groupBy,
   })
 

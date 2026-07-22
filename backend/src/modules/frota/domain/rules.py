@@ -43,7 +43,12 @@ def is_future(moment: datetime, now: datetime) -> bool:
     Então ela vive aqui, e o use case a traduz em 422.
 
     Retroativo é o caso normal da frota — o que se recusa é o **futuro**. Sem esse limite,
-    "retroativo" vira "qualquer data" e some a última âncora de sanidade."""
+    "retroativo" vira "qualquer data" e some a última âncora de sanidade.
+
+    **Os dois lados precisam ter fuso.** Comparar um ingênuo com um aware é `TypeError` em Python,
+    e quem garante que `moment` tem fuso é a borda HTTP (`AwareDatetime` nos schemas), não um
+    `if` aqui: normalizar um instante sem fuso exigiria escolher um, e essa escolha é do cliente
+    que sabe onde a viagem foi digitada."""
 
     return moment > now
 

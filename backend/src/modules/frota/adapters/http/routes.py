@@ -8,10 +8,10 @@ O que cada rota declara é a **capability**, com o `require_permission` do `core
 que o kernel usa: nenhuma linha no `access`, nenhuma mudança no `core`."""
 
 import uuid
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, status
+from pydantic import AwareDatetime
 
 from src.core.security import CurrentUserDep
 from src.modules.frota.adapters.http.dependencies import UsageScopeDep
@@ -260,8 +260,8 @@ async def list_usages(
     page_params: PageParamsDep,
     vehicle_id: Annotated[uuid.UUID | None, Query(alias="veiculo")] = None,
     driver_id: Annotated[uuid.UUID | None, Query(alias="condutor")] = None,
-    started_from: Annotated[datetime | None, Query(alias="de")] = None,
-    started_until: Annotated[datetime | None, Query(alias="ate")] = None,
+    started_from: Annotated[AwareDatetime | None, Query(alias="de")] = None,
+    started_until: Annotated[AwareDatetime | None, Query(alias="ate")] = None,
     only_open: Annotated[bool, Query(alias="abertos")] = False,
 ) -> PageResponse[UsageResponse]:
     """Os registros de uso — **o escopo é dado, não porta**.
@@ -405,14 +405,18 @@ async def delete_usage(
 async def mileage_report(
     _: UsageReaderDep,
     uow: UnitOfWorkDep,
-    started_from: Annotated[datetime, Query(alias="de")],
-    started_until: Annotated[datetime, Query(alias="ate")],
+    started_from: Annotated[AwareDatetime, Query(alias="de")],
+    started_until: Annotated[AwareDatetime, Query(alias="ate")],
     group_by: Annotated[MileageGroupBy, Query(alias="agrupar_por")] = MileageGroupBy.VEHICLE,
 ) -> MileageReportResponse:
     """Quantos quilômetros cada veículo (ou condutor) andou no período.
 
     Soma `end_odometer - start_odometer` dos usos **encerrados**; os abertos entram como contagem
-    à parte e nunca como zero km."""
+    à parte e nunca como zero km.
+
+    `de` e `ate` exigem fuso, como os instantes de corpo — o recorte é comparado contra
+    `timestamptz`, e uma borda sem fuso viraria UTC calada, escondendo as viagens do fim do dia de
+    quem não está em Greenwich."""
 
     use_case = MileageReportUseCase(uow=uow)
     return MileageReportResponse.from_result(
