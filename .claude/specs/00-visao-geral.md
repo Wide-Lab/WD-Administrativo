@@ -304,6 +304,15 @@ Backend:
 9. ✅ `backend/09-capabilities-de-modulo/spec.md` — o mecanismo que liga capability declarada por um módulo a papel: o descritor declara `grants` (papel→capabilities) e o `PermissionReader` soma os descritores do registry ao mapa do kernel. Sem migration. **O furo que a `05` registrou, fechado — a `backend/10` está destravada.** Capability de módulo é namespaced pela chave e módulo não concede a `platform_admin`; as duas violações derrubam a subida. 86 testes. Fica de dívida a soma duplicada entre o reader e o `/me` — ver `Como ficou`.
 10. ✅ `backend/10-frota/spec.md` — o **primeiro app de negócio**: veículos, condutores, registro de uso (retroativo) e relatório de quilometragem. Migration `0006`, com a constraint de exclusão que impede sobreposição de período no mesmo veículo. **O contrato de plugagem das `05`/`09` provado num módulo de verdade: zero mudança em `src/core`.** 216 testes. Ficam de dívida a duplicação de `PageResponse`/`get_page_params`/`_pg_enum` (a fronteira cobrou) e o `alembic check`, que **já não estava limpo antes** — ver `Como ficou`. As telas são spec de frontend própria.
 
+11. 📋 `backend/11-leitura-de-hodometro/spec.md` — fotografar o painel e receber o número: a porta
+    `ObjectStorage` no **`core`** (MinIO em produção, disco local de default — o gêmeo do
+    `LoggingEmailSender`), a porta `OdometerReader` no `frota` com adaptador OpenAI, e o
+    `current_odometer` derivado que **fecha o item que a `frontend/07` pôs fora de escopo**.
+    Migration `0007`, sem capability nova. O caminho **sem IA foi medido e descartado** — Tesseract
+    `eng` e `ssd` não produziram o valor correto em nenhuma das 6 fotos, nem entre os candidatos
+    (`.claude/spikes/hodometro-ocr/`); o lado multimodal **não foi medido**, e por isso o critério
+    11 exige a leitura funcionando sobre fotos reais antes de fechar.
+
 Frontend:
 
 1. ✅ `frontend/01-fundacao/spec.md` — scaffold Next (App Router), TS strict, Tailwind, shadcn, TanStack Query, zod, estrutura por feature, tooling.
@@ -315,6 +324,13 @@ Frontend:
 7. ✅ `frontend/07-telas-da-frota/spec.md` — as telas do primeiro app de negócio: viagens, veículos, condutores e quilometragem, substituindo a rota-placeholder. Um item de menu, quatro telas em abas — módulo não edita a casca. **Tudo o que difere entre pessoas sai de capability, nunca de persona.** O descritor da frota sai do `MODULE_CATALOG` e vira `features/frota/module.ts`, o espelho do que a `backend/10` fez. Fica fora: pré-preencher o hodômetro (falta `current_odometer` no backend) e exportar relatório. **Implementada em 2026-07-21**; o `Como ficou` registra que a spec errou os valores de `agrupar_por` (o enum é `veiculo`/`condutor`) e que o 409 de sobreposição é discriminado por texto de mensagem, porque o `core` devolve `code: "conflict"` pros cinco conflitos de `vehicle_usages`.
 8. ✅ `frontend/08-gestao-da-organizacao/spec.md` — pessoas (membros + convites em abas) e convênios: a tela que a `backend/08` nomeou. `buildNav` passa a receber `permissions` pra decidir os itens de kernel. Convite nunca exibe token, e vencimento nunca é recalculado no navegador. **Dois achados viram spec de backend:** `PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do último administrador, e não há rota pra uma Empresa descobrir Parceiros. **Implementada em 2026-07-21**, e um terceiro achado apareceu na implementação: `MemberResponse` não tem nome nem e-mail, então a lista de membros mostra UUID. O `Como ficou` também registra duas leituras que a spec não fechava — "Parceiros" segue persona (não existe capability pra usar, porque a rota exige só o vínculo) e `platform_admin` **vê** Pessoas, porque tem `members.read` de verdade.
 9. 📋 `frontend/09-console-da-plataforma/spec.md` — tenants e módulos vendidos, dentro da `/plataforma` e **não** na casca do tenant (é a tela de quem vende). Inspecionar tenant não escreve o `last-org`, senão o pós-login cairia no último cliente inspecionado. **Bloqueada:** uma Empresa recém-provisionada não ganha o primeiro membro por tela nenhuma, e a saída decidida (o e-mail do primeiro admin no `POST /organizacoes`, criando o convite na mesma transação) é **spec de backend ainda não escrita** — implementar a `09` antes dela entregaria o console com o caminho que importa ainda passando por CLI.
+10. 📋 `frontend/10-foto-do-hodometro/spec.md` — o botão de câmera nos diálogos de lançar e encerrar
+    viagem, o hodômetro pré-preenchido com a última leitura do veículo, e a foto visível na viagem
+    depois. **Bloqueada por `backend/11`**, sem a qual não há rota nem `current_odometer` — e é ela
+    que **fecha o "pré-preencher o hodômetro" que a `07` pôs fora de escopo**. O recorte guiado foi
+    descartado junto com o caminho sem IA. A leitura é **sugestão, nunca valor**: campo editável nos
+    três estados, e `plausivel: false` avisa sem bloquear — um `if` no formulário desfaria pela
+    porta dos fundos a decisão da `backend/10` de não travar divergência de hodômetro.
 
 ## O que não fazer (fora de escopo desta fase)
 
