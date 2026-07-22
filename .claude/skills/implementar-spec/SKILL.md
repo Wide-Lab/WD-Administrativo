@@ -64,8 +64,13 @@ Ao terminar, registre o resultado **na própria spec**, no formato da casa:
   aprendizado — as duas coisas ficam. Se um critério de aceite deixou de valer com o tempo
   (ex.: "`src/modules/` vazio", verdade só até a spec seguinte), diga isso ali em vez de
   apagá-lo.
-- Atualize o índice e o estado da fase em `00-visao-geral.md`, e a tabela + a seção
-  `Estado atual` do `CLAUDE.md`.
+- Atualize o **`Índice de specs`** e o estado da fase em `00-visao-geral.md`. Ali é onde o estado
+  mora: o que a spec entregou, o que ficou de dívida e o que ela bloqueia ou destrava.
+- No `CLAUDE.md`, atualize **só a tabela de specs** (o ✅/📋) e, se a entrega mudou onde o código
+  vive ou criou uma regra nova, o `Mapa do repositório` e as `Convenções`. **Não** descreva ali o
+  que a spec entregou, nem contagem de teste ou de rota: o `CLAUDE.md` é mapa e regra, e estado
+  duplicado nele envelhece e passa a mentir. Se a vontade for escrever um parágrafo de "agora o
+  sistema faz X", ele vai pro `Como ficou` ou pro `Índice de specs`, não pro `CLAUDE.md`.
 
 ## Não faça
 

@@ -23,8 +23,12 @@ tem casa embaixo; um fato em dois lugares vira um fato errado em um deles.
 | --- | --- |
 | Por que isto é assim? O que ficou de dívida? | o `Como ficou` da spec |
 | Em que pé está cada spec, e o que a bloqueia | `00-visao-geral.md` § `Índice de specs` |
-| O que falta fazer, em que ordem | memória `pendencias-abertas-do-superapp` |
+| O que falta fazer, e por que nesta ordem | `00-visao-geral.md` § `Fases` |
 | Onde mora o código, e o que não se negocia | aqui |
+
+As três primeiras respostas moram **no repo**, de propósito: um clone novo tem tudo. Memória de
+sessão pode indexar isso pra ir mais rápido, mas não é dona de nada — se a memória e o repo
+discordarem, o repo vence.
 
 | #   | Backend                           |     | Frontend                   |     |
 | --- | --------------------------------- | --- | -------------------------- | --- |

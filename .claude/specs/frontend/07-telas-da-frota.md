@@ -346,5 +346,6 @@ formatos de filtro, mais os casos de mês corrente, mês de 30 dias, fevereiro b
 **O que não tem teste, e não foi observado:** os critérios 1–10 descrevem interação com quatro
 personas diferentes. A stack não foi subida nesta sessão; as telas estão implementadas contra os
 contratos lidos no código do backend e verificadas por build, **não** vistas rodando. É a dívida
-de teste de componente da nota ¹ do `CLAUDE.md`, agravada de propósito por esta entrega e agora
-com quatro telas de formulário esperando por ela.
+de teste de componente que as `04`–`06` registraram e que a `00-visao-geral.md` acompanha em
+`Fases`, agravada de propósito por esta entrega e agora com quatro telas de formulário
+esperando por ela.

@@ -307,7 +307,8 @@ achei lendo os chamadores, e é o tipo de coisa que a dívida de teste de compon
 **O que não tem teste, e não foi observado:** tudo que é fluxo de tela. Não subi a stack; os
 critérios 1–10 descrevem interação (convidar, revogar, editar papel, confirmar, suspender
 convênio) e estão implementados contra os contratos lidos no código do backend, **não**
-verificados rodando. É a dívida de teste de componente da nota ¹ do `CLAUDE.md` mais a ausência
+verificados rodando. É a dívida de teste de componente que as `04`–`06` registraram (ver `Fases`
+na `00-visao-geral.md`) mais a ausência
 de browser nesta sessão — e é exatamente por isso que o critério 11 existe: a regra de
 visibilidade é a parte que nasceu com rede.
 
