@@ -16,12 +16,30 @@ inteiro e a spec numerada relevante. As specs registram não só o _quê_, mas o
 que foi decidido **não** fazer ainda, e critérios de aceite explícitos. Este `CLAUDE.md` é um
 mapa de navegação rápida — quando ele e uma spec discordarem, **a spec vence**.
 
+**Uma spec é uma pasta com dois arquivos, sempre os mesmos:**
+
+```
+.claude/specs/<backend|frontend>/NN-nome-curto/
+  spec.md          a decisão: escrita antes, congelada depois
+  como-ficou.md    o que aconteceu: nasce na implementação e cresce
+```
+
+`spec.md` **não é reescrito** pra bater com o código — se fosse, sumiria a prova do que se
+pensava antes de implementar. A divergência entre os dois é o aprendizado, e mora no
+`como-ficou.md`. Spec ainda não implementada tem só o `spec.md`, e anexo (diagrama, SQL) mora
+na pasta dela.
+
+Na raiz de `.claude/specs/` ficam os artefatos que **atravessam** specs: a `00-visao-geral.md` e
+o `banco-de-dados.puml` — um ER do schema do **kernel** (`users`, `organizations`, `memberships`,
+`partner_agreements`, `module_entitlements`, `invitations`), que por isso não é de spec nenhuma.
+Ele **não** tem as tabelas da frota (migration `0006`); quem mexer nele que as acrescente.
+
 **Este arquivo não guarda estado, e cada camada tem um dono só.** Não replique aqui o que já
 tem casa embaixo; um fato em dois lugares vira um fato errado em um deles.
 
 | Pergunta | Onde responde |
 | --- | --- |
-| Por que isto é assim? O que ficou de dívida? | o `Como ficou` da spec |
+| Por que isto é assim? O que ficou de dívida? | o `como-ficou.md` da spec |
 | Em que pé está cada spec, e o que a bloqueia | `00-visao-geral.md` § `Índice de specs` |
 | O que falta fazer, e por que nesta ordem | `00-visao-geral.md` § `Fases` |
 | Onde mora o código, e o que não se negocia | aqui |
@@ -54,8 +72,8 @@ uma existente — ambas seguem o formato da casa (`Depende de` / `Entrega` / `Ob
 
 ## Mapa do repositório
 
-Onde as coisas moram. O **porquê** de cada decisão está no `Como ficou` da spec apontada — se a
-pergunta é "por que assim?", a resposta não está nesta seção.
+Onde as coisas moram. O **porquê** de cada decisão está no `como-ficou.md` da spec apontada — se
+a pergunta é "por que assim?", a resposta não está nesta seção.
 
 | Caminho | O que tem | Spec |
 | --- | --- | --- |
@@ -148,7 +166,7 @@ e uma rota-placeholder atrás do `ModuleGuard`, nada mais. Não assuma: confirme
   (testcontainers, porta efêmera): as invariantes deste backend moram no banco, e mock ou SQLite
   ficariam verdes testando nada. **`src.main` nunca é importado no topo de um módulo de teste** —
   ele lê `get_config()` no import e congelaria a config antes de o harness apontar pro container.
-  Ver `backend/07-testes.md`.
+  Ver `backend/07-testes/spec.md`.
 - **Schema só via Alembic**, sem `create_all`. Nomes de tabela `snake_case` no plural, **sem**
   prefixo `T0xx`. E-mail é `CITEXT`; senha é **Argon2id**, nunca bcrypt. Model de módulo novo
   entra em `migrations/env.py`, senão o `--autogenerate` propõe dropar as tabelas dele. **FK que
@@ -180,11 +198,11 @@ e uma rota-placeholder atrás do `ModuleGuard`, nada mais. Não assuma: confirme
 - **Cor só por token.** O hex mora **só** no bloco de paleta de `frontend/src/styles.css`
   (`--palette-*`), mapeado pras utilidades por `@theme inline`. Tela nenhuma usa hex solto nem
   cor do Tailwind (`bg-slate-900`) — use as utilidades de token (`bg-surface`, `text-muted`,
-  `ring-ring`). Ver `frontend/02-design-system.md`.
+  `ring-ring`). Ver `frontend/02-design-system/spec.md`.
 
 ## Comandos
 
-Definidos em `backend/01-fundacao.md` e `frontend/01-fundacao.md`; o scaffold existe, então
+Definidos em `backend/01-fundacao/spec.md` e `frontend/01-fundacao/spec.md`; o scaffold existe, então
 eles valem. `docker compose up db` sobe só o Postgres (backend/frontend rodam nativos em dev);
 `docker compose up` sobe a stack inteira atrás do nginx.
 

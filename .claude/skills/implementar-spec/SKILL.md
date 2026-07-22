@@ -10,9 +10,11 @@ verdade — não até "parece pronto".
 
 ## Passo a passo
 
-1. **Leia a spec inteira antes de escrever código**, junto com toda spec listada em
-   `Depende de:` — e, nas já implementadas, principalmente a seção **`Como ficou`**, que
-   registra onde o código divergiu do texto. Cada spec declara `Estado:` no topo, e
+1. **Leia a spec inteira antes de escrever código.** Uma spec é uma pasta:
+   `<backend|frontend>/NN-nome/spec.md` é a decisão, e `como-ficou.md` (quando existe) é o que
+   de fato aconteceu. Leia os dois de toda spec listada em `Depende de:` — e nas dependências
+   já implementadas o **`como-ficou.md` é o mais importante dos dois**, porque é ele que
+   registra onde o código divergiu do texto. Cada `spec.md` declara `Estado:` no topo, e
    `00-visao-geral.md` tem o índice; use-os como mapa, mas **confirme lendo os diretórios e o
    `git log`** — spec é intenção, não retrato do repo. Se uma dependência ainda não está no
    código, **pare e avise o usuário** antes de prosseguir.
@@ -55,15 +57,31 @@ Se, ao ler a spec, você perceber que o código já foi além dela ou diverge de
 e confirme com o usuário antes de "corrigir" o código de volta pra bater com o texto — a spec
 pode estar desatualizada, não o código.
 
-Ao terminar, registre o resultado **na própria spec**, no formato da casa:
+Ao terminar, registre o resultado **na pasta da spec**, no formato da casa:
 
-- `Estado:` no topo — `✅ implementada (<hash>, <data>)`, com ponteiro pro `Como ficou`.
-- Uma seção **`Como ficou`** no fim, listando toda divergência entre o texto e o código, **com
-  o porquê**. Uma spec implementada não vira documentação do código nem é reescrita pra fingir
-  que acertou de primeira: o texto original é a decisão registrada, e a divergência é o
-  aprendizado — as duas coisas ficam. Se um critério de aceite deixou de valer com o tempo
-  (ex.: "`src/modules/` vazio", verdade só até a spec seguinte), diga isso ali em vez de
-  apagá-lo.
+- No `spec.md`, atualize **só** a linha `Estado:` do topo — `✅ implementada (<hash>, <data>)`,
+  terminando com `Ver [`como-ficou.md`](./como-ficou.md).` **O resto do `spec.md` não se
+  toca:** ele é a decisão registrada, e reescrevê-lo pra bater com o código apaga a única prova
+  do que se pensava antes de implementar.
+- Crie (ou aumente) o **`como-ficou.md`** irmão, listando toda divergência entre o texto e o
+  código, **com o porquê**. Uma spec implementada não vira documentação do código nem é
+  reescrita pra fingir que acertou de primeira: `spec.md` é a decisão, `como-ficou.md` é o que
+  aconteceu, e a distância entre os dois é o aprendizado — as duas coisas ficam. Se um critério
+  de aceite deixou de valer com o tempo (ex.: "`src/modules/` vazio", verdade só até a spec
+  seguinte), diga isso no `como-ficou.md` em vez de apagá-lo do `spec.md`.
+
+  O `como-ficou.md` começa assim, pra ficar legível sozinho:
+
+  ```markdown
+  # NN — Título da spec — Como ficou
+
+  Registro pós-implementação. A decisão original está em [`spec.md`](./spec.md), e **não**
+  é reescrita pra bater com o código: o texto de lá é o que foi decidido, este é o que
+  aconteceu — e a divergência entre os dois é o aprendizado.
+
+  ## Como ficou
+  ...
+  ```
 - Atualize o **`Índice de specs`** e o estado da fase em `00-visao-geral.md`. Ali é onde o estado
   mora: o que a spec entregou, o que ficou de dívida e o que ela bloqueia ou destrava.
 - No `CLAUDE.md`, atualize **só a tabela de specs** (o ✅/📋) e, se a entrega mudou onde o código

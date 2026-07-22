@@ -29,7 +29,7 @@ uv run pytest -k entitlement # um recorte
 - `tests/unit` roda em ~0,04s sem Docker; é onde o mapa papel→permissão fica preso. Use-o pra
   loop rápido quando a mudança é de regra pura.
 - **Teste não é opcional no backend:** todo critério de aceite testável entra em
-  `backend/tests/` na mesma entrega (`backend/07-testes.md`). Verificar backend inclui um
+  `backend/tests/` na mesma entrega (`backend/07-testes/spec.md`). Verificar backend inclui um
   `pytest` verde, não só lint + typecheck.
 
 Se um `uv run` falhar **baixando pacote** (`proxy authorization required`), é o proxy desta

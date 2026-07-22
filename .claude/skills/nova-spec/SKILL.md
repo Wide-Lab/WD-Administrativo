@@ -10,19 +10,36 @@ formato já estabelecido pelas specs existentes. Leia `.claude/specs/00-visao-ge
 inteiro antes de escrever qualquer coisa — ele contém as decisões já tomadas e adiadas que
 toda spec nova precisa respeitar ou justificar explicitamente por que está mudando.
 
-## Onde o arquivo vai
+## Onde os arquivos vão
 
-`.claude/specs/frontend/NN-nome-curto.md` ou `.claude/specs/backend/NN-nome-curto.md`. `NN`
-é o próximo número livre naquela pasta, sequencial. Um **app de negócio** (Refeições, Carro)
-é um módulo próprio: suas specs entram numerando a partir do fim da fila da pasta
-correspondente e o módulo pluga no núcleo pelo contrato de `backend/05-modulos-e-entitlements.md`
-(descritor + rotas sob `/api/organizacoes/{orgId}/<chave>`), sem tocar `core`. Se a spec não
-pertence a nenhuma das duas pastas (infra, ambas as pontas), pergunte ao usuário onde ela
-mora antes de criar o arquivo.
+**Uma spec é uma pasta, nunca um arquivo solto:**
 
-Depois de criar o arquivo, adicione uma linha no índice de `.claude/specs/00-visao-geral.md`
+```
+.claude/specs/<backend|frontend>/NN-nome-curto/
+  spec.md          ← você escreve este agora
+  como-ficou.md    ← a `implementar-spec` cria depois, ao fechar a entrega
+```
+
+`NN` é o próximo número livre naquela pasta, sequencial. **Crie só o `spec.md`** — o
+`como-ficou.md` não nasce junto: ele é o registro do que aconteceu, e ainda não aconteceu nada.
+Uma pasta com um arquivo só é o estado normal de uma spec não implementada.
+
+Por que pasta e não arquivo: `spec.md` é escrito uma vez e congela; `como-ficou.md` nasce depois
+e cresce. São 41% do conteúdo das specs implementadas, com ciclo de vida e leitor diferentes — e
+a pasta ainda dá casa a anexo (diagrama, SQL, amostra de contrato) sem poluir a raiz.
+
+Um **app de negócio** (Refeições, Carro) é um módulo próprio: suas specs entram numerando a
+partir do fim da fila da pasta correspondente e o módulo pluga no núcleo pelo contrato de
+`backend/05-modulos-e-entitlements/spec.md` (descritor + rotas sob
+`/api/organizacoes/{orgId}/<chave>`), sem tocar `core`. Se a spec não pertence a nenhuma das duas
+pastas (infra, ambas as pontas), pergunte ao usuário onde ela mora antes de criar a pasta.
+
+Depois de criar o `spec.md`, adicione uma linha no índice de `.claude/specs/00-visao-geral.md`
 (seção "Índice de specs"), na posição certa da ordem de implementação — cada spec ali declara
 suas dependências, então a ordem importa.
+
+Ao citar outra spec, aponte pro arquivo: `backend/04-membros-e-autorizacao/spec.md`, ou
+`.../como-ficou.md` quando o que importa é o que de fato aconteceu.
 
 ## Estrutura obrigatória
 
@@ -54,7 +71,7 @@ Lista numerada, cada item verificável observando o sistema rodando (uma requisi
 um output de comando) — não "o código está limpo". **Critério de backend deve ser escrito de
 forma observável por teste automatizado** (uma requisição e um status, uma linha no banco), e
 não só por inspeção: é o que torna a regra "teste não é opcional no backend"
-(`backend/07-testes.md`) exequível sem renegociar em cada spec.
+(`backend/07-testes/spec.md`) exequível sem renegociar em cada spec.
 ```
 
 ## Convenções do projeto que a spec tem que respeitar
