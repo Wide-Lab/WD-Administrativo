@@ -17,9 +17,7 @@ describe('homePathFor', () => {
   })
 
   it('manda pra organização de quem tem um vínculo só', () => {
-    expect(homePathFor([membership(ACME, 'company', 'collaborator')])).toBe(
-      `/organizacoes/${ACME}`,
-    )
+    expect(homePathFor([membership(ACME, 'company', 'collaborator')])).toBe(`/organizacoes/${ACME}`)
   })
 
   it('manda o vínculo de plataforma pra área cross-tenant, não pra um orgId', () => {

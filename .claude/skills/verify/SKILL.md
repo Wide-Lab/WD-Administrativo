@@ -44,30 +44,27 @@ npm run test                 # vitest run — só as libs puras (nav, home-path,
 npm run build                # build de produção
 ```
 
-`npm run test` cobre **só regra pura** (61 testes): não há testing-library/jsdom, então casca,
-guards, `Can`, seletor e os formulários de onboarding **não têm teste** — é a dívida de teste
-do frontend, deixada em aberto de propósito. Verde aqui não cobre componente.
+`npm run test` cobre **só regra pura** (180 testes em 14 arquivos, medidos em 2026-07-22): não há
+testing-library/jsdom, então casca, guards, `Can`, seletor, os formulários de onboarding e as seis
+telas das `frontend/07`/`08` **não têm teste de DOM** — é a dívida de teste do frontend, deixada em
+aberto de propósito (ver `Fases` na `00-visao-geral.md`). Verde aqui não cobre componente.
 
-## NÃO rode `npm run format` nem `npm run check`
-
-`npm run format` (`prettier --write .`) e `npm run check` (`prettier --check .`) tocam o **repo
-inteiro**, e ~12 arquivos intocados estão em CRLF no disco (autocrlf do Git no Windows, sem
-`.gitattributes`). Consequência:
-
-- `npm run format` reescreve o fim de linha do projeto todo e **afoga a entrega num diff de
-  milhares de linhas** que não são a sua mudança.
-- `npm run check` fica **vermelho por causa desses arquivos herdados** — um vermelho que não
-  significa que o seu código está mal formatado.
-
-Formate **só os arquivos da sua entrega**, preservando o EOL de cada um:
+## `npm run check` pode rodar — a dívida de CRLF foi paga
 
 ```bash
-npx prettier --write --end-of-line auto <seus-arquivos>
+npm run check                # prettier --check . — verde no repo inteiro
 ```
 
-Pra saber se um `--check` vermelho é seu ou herdado, compare com o baseline (`git stash` +
-`--check`). Consertar de vez é um `.gitattributes` — dívida de infra, commit/spec próprio,
-separado de qualquer feature.
+Até 2026-07-22 esta seção dizia o contrário, e com razão: sem `.gitattributes`, 261 arquivos
+intocados estavam em CRLF no disco, o `--check` ficava vermelho por causa deles e o `--write`
+afogava a entrega num diff de milhares de linhas. **Isso acabou:** o `.gitattributes` na raiz
+fixa `text=auto` e o `frontend/.prettierrc.json` ganhou `"endOfLine": "auto"`, então o prettier
+parou de brigar com o fim de linha do working tree. Não precisa mais de `--end-of-line auto` na
+mão, e um `--check` vermelho agora **é seu** — trate como erro de verdade.
+
+`npm run format` continua merecendo cuidado, mas por outro motivo: ele roda `eslint --fix .` no
+repo inteiro junto do prettier. Se quiser só formatar a sua entrega, `npx prettier --write
+<seus-arquivos>` continua sendo o caminho mais previsível.
 
 ## Reportar
 

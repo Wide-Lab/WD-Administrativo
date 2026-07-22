@@ -1,0 +1,30 @@
+# Fim de linha — o repo é a autoridade, não a máquina de quem clonou.
+#
+# Sem este arquivo, quem decide é o `core.autocrlf` local, que varia por máquina e por
+# instalação do Git. O sintoma que isso causou aqui: o working tree do Windows ficou com 261
+# arquivos em CRLF e 75 em LF, e o `prettier --check` passou a falhar em arquivo que ninguém
+# tocou — o que fez `npm run format` reescrever o repo inteiro e afogar todo diff.
+#
+# `text=auto` normaliza pra **LF no repositório** e deixa o checkout usar a convenção da
+# plataforma. Não renormaliza nada agora: o index já estava 100% LF (`git ls-files --eol`),
+# então este arquivo trava o que já era verdade em vez de mudar o que está gravado.
+#
+# O par disto é `"endOfLine": "auto"` no `frontend/.prettierrc.json`: o git garante LF no
+# repo, e o prettier para de brigar com o CRLF do working tree.
+
+* text=auto
+
+# Lidos dentro de container Linux — aqui CRLF não é estética, quebra execução.
+Dockerfile      text eol=lf
+*.sh            text eol=lf
+*.conf          text eol=lf
+
+# Binários que ainda não existem no repo, declarados pra não serem corrompidos quando surgirem.
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.woff          binary
+*.woff2         binary
+*.pdf           binary
