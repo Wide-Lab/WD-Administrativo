@@ -176,7 +176,7 @@ entrega**, pra a dívida parar de crescer sem rede enquanto a infra não chega.
 
 **Em 2026-07-21 as `07` e `08` foram implementadas** — em duas worktrees em paralelo, com um único
 conflito no merge (`components/ui/table.tsx`, criado pelas duas). A frota e a gestão da organização
-têm tela, sobrou a `09`, e a suíte pura foi de **61 para 173 testes**. A regra da função pura
+têm tela, sobrou a `09`, e a suíte pura foi de **61 para 180 testes**. A regra da função pura
 segurou 112 deles, então ela funcionou. Mas a dívida de componente **cresceu como previsto**: seis
 telas novas de formulário sem cobertura de DOM, e as duas entregas nem chegaram a subir a stack —
 foram escritas contra os contratos lidos no código do backend e checadas por `build`. Quem
@@ -259,7 +259,7 @@ uma vez agora são **69 testes em ~13s**, contra Postgres de verdade e com o sch
 `alembic upgrade head`: o uso único do token, a resposta uniforme do aceite e a atomicidade do
 auto-cadastro — propriedades que somem numa refatoração sem ninguém notar — quebram a suíte se
 alguém as desfizer. **Teste deixou de ser opcional no backend**: a regra está no `CLAUDE.md` e no
-passo 4 da `implementar-spec`, e o opt-in que causou a dívida (*"specs que citam testes"*) morreu.
+passo 4 da `implementar-spec`, e o opt-in que causou a dívida (_"specs que citam testes"_) morreu.
 
 **As dívidas que seguem abertas antes da fase 2** (as duas primeiras **adiadas** em 2026-07-20 —
 ver acima): **CI** — sem ele, a rede depende de `uv run

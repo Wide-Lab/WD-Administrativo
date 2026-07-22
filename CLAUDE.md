@@ -65,14 +65,18 @@ pergunta é "por que assim?", a resposta não está nesta seção.
 | `backend/src/modules/frota/` | 1º app de negócio: `vehicles`, `drivers`, `vehicle_usages`. Migration `0006`. 14 rotas e 7 capabilities namespaced (`frota.*`), importando **só** `src.core` | `backend/10` |
 | `backend/tests/` | `unit/` (regra pura, roda sem Docker) e `integration/` (Postgres efêmero via testcontainers) | `backend/07` |
 | `frontend/src/features/` | `auth`, `context` (casca, nav, guards, seletor de org), `onboarding`, `frota`, `organization` | `frontend/03`–`08` |
-| `frontend/src/styles.css` | a paleta — **o único lugar do repo com hex** | `frontend/02` |
+| `frontend/src/styles.css` | a paleta — **o único lugar do repo com hex**. Vitrine viva dos primitivos em `/design-system` | `frontend/02` |
 | `docker-compose.yml`, `nginx/` | stack completa (Postgres, backend, frontend, nginx) | `backend/01` |
 
-**Rotas do backend.** `/api/me`, `/api/me/password`, `/api/me/contexto`; `/api/organizacoes`
-(`POST`/`GET`) e `/{orgId}`; e sob `/api/organizacoes/{orgId}/`: `me`, `membros`, `convenios`,
-`modulos[/{chave}]`, `convites[/{id}]` e `frota/*`. **Públicas:** `GET /api/convites/{token}`,
-`POST /api/convites/{token}/aceitar`, `POST /api/parceiros/cadastro`. A migration `0002` **semeia
-a organização `platform`** (`01890000-0000-7000-8000-000000000001`).
+**Rotas do backend.** `POST /api/auth/login` e `/api/auth/logout`; `/api/me`, `/api/me/password`,
+`/api/me/contexto`; `/api/organizacoes` (`POST`/`GET`) e `/{orgId}`; e sob
+`/api/organizacoes/{orgId}/`: `me`, `membros`, `convenios`, `modulos[/{chave}]`,
+`convites[/{id}]` e `frota/*`. **Públicas:** `GET /api/convites/{token}`,
+`POST /api/convites/{token}/aceitar`, `POST /api/parceiros/cadastro`.
+
+As migrations ficam em `backend/migrations/versions/` — **fora de `src/`**. A `0002` **semeia a
+organização `platform`** (`01890000-0000-7000-8000-000000000001`), valor de que os testes
+dependem.
 
 **Rotas do frontend.** `/` **roteia** pra home da persona (não é tela); `(publico)/entrar`,
 `(publico)/convites/[token]`, `(publico)/parceiros/cadastro`; `/plataforma` (cross-tenant); e
@@ -210,8 +214,9 @@ eles valem. `docker compose up db` sobe só o Postgres (backend/frontend rodam n
   (`localhost:5432` é de outro projeto — precisa do forwarder `socat`), `pkill` não mata no
   Windows (`taskkill /F /PID`), e `uv` que baixa pacote precisa de `NO_PROXY='*'`.
 - **`verify`** — lint/typecheck/testes das duas pontas. Deixa claro que `pytest` exige Docker e
-  ignora o `DATABASE_URL` do shell, e que **`npm run format`/`check` não devem rodar** (tocam o
-  repo inteiro e afogam o diff em CRLF; formate só seus arquivos com `--end-of-line auto`).
+  ignora o `DATABASE_URL` do shell. **`npm run check` é verde desde 2026-07-22** (o
+  `.gitattributes` e o `endOfLine: auto` mataram a dívida de CRLF), então vermelho ali é erro
+  seu.
 
 ## Relação com a Central de Aplicações (`apps/central`)
 
