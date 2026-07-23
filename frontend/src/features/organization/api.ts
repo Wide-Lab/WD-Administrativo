@@ -43,8 +43,12 @@ export async function listMembers(
 /** Muda papel e/ou status de um vínculo (`members.write`).
  *
  *  422 se o papel não existe no tipo desta organização — e a mensagem do backend traz a lista de
- *  papéis válidos, que é o que a tela mostra. 404, e não 403, num vínculo de outra organização:
- *  quem não pode vê-lo também não deveria descobrir que ele existe. */
+ *  papéis válidos, que é o que a tela mostra —, **e 422 também no próprio vínculo**: ninguém se
+ *  rebaixa nem se desativa. 404, e não 403, num vínculo de outra organização: quem não pode
+ *  vê-lo também não deveria descobrir que ele existe.
+ *
+ *  Devolve o membro no mesmo formato da listagem, com `name` e `email` — a tela não tem duas
+ *  formas do mesmo objeto pra parsear. */
 export async function updateMember(
   orgId: string,
   membershipId: string,

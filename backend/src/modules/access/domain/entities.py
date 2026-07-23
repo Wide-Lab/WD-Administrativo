@@ -4,6 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from src.core.modules import ModuleKey
+from src.core.security import UserProfile
 from src.core.tenancy import OrganizationType
 from src.core.types import UNSET, BaseCreateCommand, BaseUpdateCommand, UnsetType
 
@@ -15,6 +16,7 @@ __all__ = [
     "Membership",
     "MembershipStatus",
     "MembershipWithOrganization",
+    "MembershipWithUser",
     "ModuleEntitlement",
     "NewInvitation",
     "NewMembership",
@@ -171,6 +173,21 @@ class MembershipWithOrganization:
 
     membership: Membership
     organization: Organization
+
+
+@dataclass(frozen=True, slots=True)
+class MembershipWithUser:
+    """Um vínculo já com a pessoa do outro lado — o que a tela de membros precisa.
+
+    O par do `MembershipWithOrganization`, virado pro outro lado da linha, e pelo mesmo motivo:
+    sem ele, quem lista teria de resolver identidade fora daqui. A diferença é de onde vem a
+    outra metade — `Organization` é do próprio `access`, e `UserProfile` é do `core`, porque
+    `users` é tabela do `auth` e módulo não importa módulo. Quem preenche isto é o use case,
+    pela porta `UserReader`; **nenhum repositório de `access` faz esse join**, e não faria: o
+    `Membership` do domínio segue conhecendo só o `user_id`."""
+
+    membership: Membership
+    user: UserProfile
 
 
 @dataclass(frozen=True, slots=True)

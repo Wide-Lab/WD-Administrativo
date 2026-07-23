@@ -27,6 +27,29 @@ export function actionFor(status: InvitationStatus): InvitationAction {
   return INVITATION_ACTION[status]
 }
 
+/** As opções do filtro da aba, em ordem de tela.
+ *
+ *  **`pending` não está aqui, e a ausência é o conserto de um bug de tela**: a lista nasceu como
+ *  "Pendentes" (o default, sem parâmetro) seguido dos quatro valores do enum, e o resultado era
+ *  uma barra com `Pendentes · Pendente · Aceito · Revogado · Expirado` — duas opções diferentes
+ *  no nome e idênticas no efeito, porque sem `?status=` o backend devolve exatamente os
+ *  pendentes. Quem clicasse numa e depois na outra veria a mesma lista e ficaria sem saber o que
+ *  havia entendido errado.
+ *
+ *  Sobrou uma pergunta por status, e a de "pendentes" é a ausência de filtro — que é como o
+ *  backend a expressa (`backend/08`). **Não há "Todos"**: a rota não sabe dizer "sem filtro
+ *  nenhum", e inventar aqui um valor que ela não aceita daria 422 num clique.
+ *
+ *  Os rótulos estão no plural, e por isso não saem do `INVITATION_STATUS_LABEL`: lá eles
+ *  descrevem **um** convite numa linha da tabela ("Aceito"), aqui nomeiam um recorte da lista
+ *  ("Aceitos"). Mesma palavra, número diferente. */
+export const STATUS_FILTER_OPTIONS: readonly { value: InvitationStatus | null; label: string }[] = [
+  { value: null, label: 'Pendentes' },
+  { value: 'accepted', label: 'Aceitos' },
+  { value: 'revoked', label: 'Revogados' },
+  { value: 'expired', label: 'Expirados' },
+]
+
 /** O `?status=` da URL virando filtro.
  *
  *  **`null` é a ausência do parâmetro, e ela é significativa**: sem `?status=` o backend devolve

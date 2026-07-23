@@ -164,10 +164,11 @@ export function DriverFormDialog({ driver, trigger }: { driver?: Driver; trigger
               <option value="">— sem vínculo —</option>
               {members.data?.items.map((member) => (
                 <option key={member.id} value={member.user_id}>
-                  {/* O contrato do `access` não devolve nome nem e-mail do membro — só o
-                      `user_id`. É furo de backend, registrado no `Como ficou`: até ele fechar, a
-                      opção se identifica pelo papel e pelo começo do id, que é o que existe. */}
-                  {member.role} · {member.user_id.slice(0, 8)}
+                  {/* Já foi `papel · <8 caracteres de UUID>`, porque era o que o contrato do
+                      `access` dava. A `MemberResponse` ganhou nome e e-mail, e o e-mail fica
+                      junto de propósito: é ele que desempata dois homônimos na hora de vincular
+                      um condutor a quem tem login. */}
+                  {member.name} · {member.email}
                 </option>
               ))}
               {/* Um condutor já vinculado a alguém que a lista não trouxe (sem `members.read`, ou

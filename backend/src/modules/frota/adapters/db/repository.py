@@ -141,13 +141,9 @@ class VehicleRepository(
         filters = filters or self.filters_type()
         stmt = self._apply_filters(self._select_with_odometer().where(self._tenant_filter), filters)
 
-        total = await self._session.scalar(
-            sa.select(sa.func.count()).select_from(stmt.subquery())
-        )
+        total = await self._session.scalar(sa.select(sa.func.count()).select_from(stmt.subquery()))
         result = await self._session.execute(
-            stmt.offset((page_params.page - 1) * page_params.page_size).limit(
-                page_params.page_size
-            )
+            stmt.offset((page_params.page - 1) * page_params.page_size).limit(page_params.page_size)
         )
 
         return Page(

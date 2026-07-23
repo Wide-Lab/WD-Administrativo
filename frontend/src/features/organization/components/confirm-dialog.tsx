@@ -12,7 +12,10 @@ import { Button } from '#/components/ui/button'
  *  Trocar por `<Dialog>` do shadcn depois é substituir este arquivo, não mexer em quem o chama.
  *
  *  **Confirmação não é guard.** Nada aqui impede nada: o backend permite o que permite, e um
- *  diálogo é honestidade sobre a consequência — não um cadeado. Ver `member-row-form.tsx`. */
+ *  diálogo é honestidade sobre a consequência — não um cadeado. Quem usa isto hoje é a revogação
+ *  de convite; o outro caso, a auto-edição de vínculo, deixou de existir quando o backend passou
+ *  a recusá-la com 422 — e aí o certo passou a ser esconder o controle, não confirmá-lo. Ver
+ *  `member-row-form.tsx`. */
 export function ConfirmDialog({
   open,
   title,

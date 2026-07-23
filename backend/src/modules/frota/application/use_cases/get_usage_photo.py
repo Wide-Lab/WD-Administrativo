@@ -71,9 +71,7 @@ class GetUsagePhotoUseCase:
                     raise NotFoundError("Viagem não encontrada.")
 
             reading_id = (
-                usage.start_reading_id
-                if side is PhotoSide.DEPARTURE
-                else usage.end_reading_id
+                usage.start_reading_id if side is PhotoSide.DEPARTURE else usage.end_reading_id
             )
             if reading_id is None:
                 raise NotFoundError(f"Esta viagem não tem foto de {side.value}.")

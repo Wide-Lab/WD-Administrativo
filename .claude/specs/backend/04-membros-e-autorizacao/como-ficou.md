@@ -94,3 +94,65 @@ previa:
 - **`PATCH /membros/{id}` de vínculo de outra organização responde 404, não 403** — mesma
   escolha do `PATCH /convenios/{id}` (spec 03): quem não pode ver também não deveria descobrir
   que existe. E o corpo vazio (`{}`) responde 422: `None` ali é "não mexe", não "apaga".
+
+## Depois — 2026-07-23: as duas dívidas que a `frontend/08` cobrou
+
+A tela de membros existiu, foi usada, e devolveu duas contas pra cá. Nenhuma das duas era achado
+novo: as duas estavam escritas como dívida no `Como ficou` da `frontend/08` — a primeira como "o
+terceiro achado de backend, e é o que mais dói", a segunda como um comentário em
+`member-row-form.tsx` pedindo pra **não** consertar o buraco na tela. Foram fechadas juntas
+porque são o mesmo `PATCH` e a mesma linha da tabela.
+
+### `MemberResponse` ganhou `name` e `email` — por uma porta, não por um join
+
+A lista de membros exibia UUID porque a resposta só tinha `user_id`, e `access` não pode importar
+`auth` pra ler `users`. As saídas eram três: uma rota de diretório no kernel (`GET /usuarios/{id}`,
+que resolveria isto e abriria uma superfície nova de leitura de identidade), um join impossível, ou
+**um verbo a mais na porta que já existe**. Ficou a terceira: `UserReader`, em
+`core/security/identity.py`, ganhou `list_profiles_by_ids` e um `UserProfile`; o `auth` a
+implementa no `SqlAlchemyUserReader`, e o `ListMembersUseCase` cruza a página.
+
+O que isso preserva é o que importa: **o `mount_routes` não ganhou linha**. A porta já era
+registrada, e a regra da casa ("ganhar linha no `mount_routes` é privilégio de kernel") continua
+valendo com as mesmas cinco. `UserProfile` é tipo separado de `CurrentUser` de propósito, embora
+os campos sejam os mesmos — um é o sujeito autorizado da requisição, o outro é um terceiro numa
+lista, e fundi-los faria um `if user.id == …` escrito por engano virar bug de autorização.
+
+Duas decisões pequenas que valem registro:
+
+- **em lote, e não um `get` por linha.** A versão singular convidaria ao N+1 sem que nada no tipo
+  denunciasse. São duas consultas por página, e é o preço do seam;
+- **sem filtro por `status`**, diferente do `get_active_by_id` logo ao lado. São perguntas
+  opostas: aquele decide quem entra, este diz quem é o dono de um vínculo que existe. Esconder o
+  nome de quem foi desativado deixaria a linha anônima justamente na tela que serve pra reativá-la.
+
+O `PATCH` devolve o mesmo formato — senão a tela teria duas formas do mesmo objeto pra parsear, e
+o membro recém-editado voltaria a ser um UUID até alguém recarregar.
+
+### Ninguém edita o próprio vínculo: 422
+
+Um `company_admin` se rebaixava a `collaborator` e a organização ficava sem quem a administre, sem
+erro nenhum. A trava é por tabela — **papel e status, sempre** —, e não uma regra que compara
+papéis: `members.write` só existe em `company_admin`, `partner_admin` e `platform_admin`, então
+toda mudança que alguém faria na própria linha é rebaixamento ou desativação.
+
+**O efeito colateral é que a regra do "último administrador ativo" não precisou existir.** Ela
+estava na lista de dívidas junto com esta, e cai por consequência: se ninguém tira a si mesmo, e
+cada um só edita os outros, sempre sobra pelo menos quem editou. Uma consulta a menos, e uma
+regra a menos pra alguém manter.
+
+422 e não 403 porque a permissão está lá — quem pede *tem* `members.write`; o que não existe é o
+ato. E a checagem vem **depois** do 404 de vínculo de outra organização, pra não trocar a ordem de
+quem descobre o quê.
+
+A rota passou a receber `CurrentUserDep`: ela já sabia o que era preciso poder fazer, e o que
+faltava era saber *quem* pedia.
+
+### Testes
+
+`tests/integration/access/test_membros.py`, 8 casos: a listagem com nome e e-mail, a listagem
+mostrando quem foi desativado nas duas pontas (vínculo e identidade), o `PATCH` devolvendo
+identidade junto, o auto-rebaixamento e a auto-desativação recusados — com conferência no SQL de
+que o papel **não** mudou —, a trava valendo pro `partner_admin` e pro `platform_admin`, e o par
+que impede tudo isso de virar "ninguém edita ninguém": o admin segue editando os outros. A suíte
+de `access` foi a 71.

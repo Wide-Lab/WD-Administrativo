@@ -123,3 +123,58 @@ visibilidade é a parte que nasceu com rede.
 **não** tem `invitations.read`/`invitations.write`, que existem desde a `backend/06`/`08` e têm
 guard de verdade. Cabia uma linha cada, mas é escopo que esta spec não pediu — fica anotado em
 vez de emendado.
+
+## Depois — 2026-07-23: as duas dívidas cobradas, e um bug que a tela criou sozinha
+
+Três correções na tela de Pessoas. Duas fecham dívidas registradas acima; a terceira é um erro
+desta implementação, achado usando a tela.
+
+### A coluna "Pessoa" mostra nome e e-mail
+
+O "terceiro achado" foi consertado onde ele estava: no backend. A `MemberResponse` passou a trazer
+`name` e `email`, cruzados por uma porta do `core` (ver o `Como ficou` da `backend/04`), e a tela
+só passou a exibir o que recebe — nome em cima, e-mail embaixo, badge "Você" na própria linha.
+Nenhuma regra nova aqui, e é assim que devia ser: **a lacuna nunca foi de tela**. O efeito
+colateral que estava documentado — o e-mail aparecer na aba Convites e sumir quando a pessoa
+aceita — morreu junto.
+
+### Os controles somem da própria linha, e agora isso **não** é cadeado pintado
+
+O comentário em `member-row-form.tsx` mandava não fechar o buraco na tela, e estava certo enquanto
+o backend permitia a auto-edição: esconder o controle teria sumido no primeiro `curl` e feito todo
+mundo achar que o caso estava tratado. O backend passou a recusar com 422 — papel **e** status —,
+e só por causa disso os controles saíram: esconder o que o servidor nega é informar; esconder o
+que ele permite é mentir.
+
+No lugar deles, uma frase que diz para onde ir ("só outro administrador edita o seu vínculo"), que
+é o que falta quando um "não pode" não tem saída. O `ConfirmDialog` da auto-edição foi junto — ele
+pesava um risco que já não é possível correr — e o componente segue vivo, usado pela revogação de
+convite.
+
+Um efeito de segunda ordem: o `useUpdateMember` invalidava também o `/me` da organização, e a razão
+era exatamente o auto-rebaixamento (quem se editava mudava as próprias permissões, e a casca sai
+dali). Sem o caso, aquilo virou uma requisição por edição buscando um contexto que não pode ter
+mudado — editar outra pessoa não mexe no meu papel, na minha persona nem nos meus módulos. Saiu, e
+o porquê ficou escrito no arquivo, pra voltar junto se a regra um dia mudar.
+
+### O filtro de convites tinha uma opção a mais, e as duas primeiras faziam a mesma coisa
+
+A barra mostrava `Pendentes · Pendente · Aceito · Revogado · Expirado`. O primeiro é o default —
+a **ausência** de `?status=`, que a `backend/08` fez devolver só os pendentes — e o segundo é
+`?status=pending`, que dá exatamente a mesma lista. Quem clicasse nos dois veria o mesmo resultado
+e ficaria sem saber o que tinha entendido errado.
+
+Veio de como as opções eram montadas: `{ value: null } + invitationStatusSchema.options`, ou seja,
+o default **mais o enum inteiro**. A decisão de "ausência ≠ `pending`", que está registrada mais
+acima e é certa, foi aplicada no parser e no href e esquecida na lista de opções.
+
+Ficaram quatro: `Pendentes` (sem parâmetro) · `Aceitos` · `Revogados` · `Expirados`. **Não há
+"Todos"**, e não é esquecimento — a rota não sabe dizer "sem filtro nenhum", e inventar aqui um
+valor que ela não aceita daria 422 num clique. Os rótulos estão no plural e por isso **não** saem
+do `INVITATION_STATUS_LABEL`: lá eles descrevem um convite numa linha ("Aceito"), aqui nomeiam um
+recorte da lista ("Aceitos").
+
+As opções saíram do componente e foram pra `lib/invitation-status.ts`, onde um teste as alcança —
+que é o que faltava pro bug ter sido pego. Cinco casos novos, e o que importa não é o que testa o
+rótulo: é o que gera o href de cada opção e exige que **nenhum se repita**. Esse pega a classe
+inteira do erro, e não o caso de hoje. `npm run test` foi de 180 a 185.

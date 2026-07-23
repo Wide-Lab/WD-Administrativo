@@ -5,7 +5,6 @@ import { useState } from 'react'
 import { Button } from '#/components/ui/button'
 import { MEMBERSHIP_STATUS_LABEL } from '#/features/context/lib/labels'
 import type { OrganizationType } from '#/features/context/types'
-import { ConfirmDialog } from '#/features/organization/components/confirm-dialog'
 import { RoleSelect } from '#/features/organization/components/role-select'
 import { updateMemberErrorMessage } from '#/features/organization/lib/organization-error'
 import { membershipStatusSchema, updateMemberSchema } from '#/features/organization/schema'
@@ -19,41 +18,24 @@ const selectClassName = cn(
   'disabled:cursor-not-allowed disabled:opacity-50',
 )
 
-/** A consequência de editar a **própria** linha, dita por extenso.
- *
- *  Duas frases porque são dois estragos diferentes: perder o papel é perder capabilities (e
- *  possivelmente esta tela), desativar o vínculo é perder a organização inteira. */
-function selfEditWarning(next: UpdateMemberInput, current: Member): string | null {
-  if (next.status === 'disabled' && current.status !== 'disabled') {
-    return 'Você está desativando o seu próprio vínculo com esta organização. Ao confirmar, você perde o acesso a ela — inclusive a esta tela. Só outro administrador, ou a Widelab, consegue reativá-lo.'
-  }
-
-  if (next.role !== current.role) {
-    return 'Você está mudando o seu próprio papel nesta organização. Se o papel novo não administrar membros, você perde o acesso a esta tela ao confirmar — e voltar atrás depende de outro administrador, ou da Widelab.'
-  }
-
-  return null
-}
-
 /** Os controles de edição de um membro — papel e status.
  *
- *  ## Por que não há `if (membership.id === meuId) return` aqui
+ *  ## A própria linha não tem controle, e desta vez isso não é um cadeado pintado
  *
- *  Porque seria um cadeado pintado, e a spec (`frontend/08`) decidiu não pintá-lo. O
- *  `UpdateMembershipUseCase` **não guarda nada** além de papel×tipo: um `company_admin` pode se
- *  rebaixar pra `collaborator` ou desativar o próprio vínculo, e a organização fica sem quem a
- *  administre — sem erro e sem caminho de volta que não seja `platform_admin` ou CLI. Vale igual
- *  pro último `partner_admin`.
+ *  Enquanto a regra não existia no backend, esconder os controles aqui teria sido pior que
+ *  mostrá-los: sumiria no primeiro `curl` e faria todo mundo achar que o caso estava tratado. A
+ *  tela então marcava a linha e **nomeava a consequência** num diálogo de confirmação, que era o
+ *  máximo que lhe cabia honestamente.
  *
- *  Um `return` nesta linha **pareceria** proteção e sumiria no primeiro `curl`, com o efeito
- *  colateral de fazer todo mundo achar que o caso está tratado — que é exatamente o que a regra
- *  do `Can` diz sobre esconder botão sem `require_permission` do outro lado. O conserto de
- *  verdade é regra de domínio (422 no auto-rebaixamento e na remoção do último administrador
- *  ativo) e é **spec de backend**, achada ao escrever a de frontend. Não "conserte" isto aqui:
- *  fechar o buraco na tela é o que faria ninguém fechá-lo onde ele existe.
+ *  O `UpdateMembershipUseCase` passou a recusar a auto-edição com 422 — papel e status, porque
+ *  `members.write` só existe em papel de administrador e toda mudança na própria linha é um
+ *  rebaixamento ou uma desativação. Só **por causa disso** os controles somem daqui: o que a
+ *  tela esconde agora é algo que o backend nega, que é a única condição em que esconder é
+ *  informar em vez de mentir. A frase no lugar deles diz para onde ir, porque "não pode" sem
+ *  saída é o que faz alguém tentar de novo.
  *
- *  O que esta tela faz é o que lhe cabe: marca a própria linha e **nomeia a consequência** antes
- *  de agir. Confirmação é honestidade sobre um risco real, não guard. */
+ *  O diálogo de confirmação foi junto: ele existia pra pesar um risco que hoje não é possível
+ *  correr. */
 export function MemberRowForm({
   member,
   organizationType,
@@ -67,29 +49,22 @@ export function MemberRowForm({
     role: member.role,
     status: member.status,
   })
-  const [pendingConfirmation, setPendingConfirmation] = useState<UpdateMemberInput | null>(null)
   const update = useUpdateMember(member.organization_id)
 
   const isDirty = values.role !== member.role || values.status !== member.status
-
-  function apply(input: UpdateMemberInput) {
-    update.mutate({ membershipId: member.id, input })
-  }
 
   function handleSubmit() {
     const parsed = updateMemberSchema.safeParse(values)
     if (!parsed.success) return
 
-    // A confirmação é só sobre si mesmo — e ela não decide nada, só pergunta.
-    if (isSelf && selfEditWarning(parsed.data, member) !== null) {
-      setPendingConfirmation(parsed.data)
-      return
-    }
-
-    apply(parsed.data)
+    update.mutate({ membershipId: member.id, input: parsed.data })
   }
 
-  const warning = pendingConfirmation === null ? null : selfEditWarning(pendingConfirmation, member)
+  if (isSelf) {
+    return (
+      <p className="text-right text-sm text-muted">Só outro administrador edita o seu vínculo.</p>
+    )
+  }
 
   return (
     <div className="space-y-2">
@@ -142,21 +117,6 @@ export function MemberRowForm({
           {updateMemberErrorMessage(update.error)}
         </p>
       ) : null}
-
-      <ConfirmDialog
-        open={pendingConfirmation !== null}
-        title="Você está editando o seu próprio acesso"
-        description={warning ?? ''}
-        confirmLabel="Editar mesmo assim"
-        destructive
-        isPending={update.isPending}
-        onCancel={() => setPendingConfirmation(null)}
-        onConfirm={() => {
-          if (pendingConfirmation === null) return
-          apply(pendingConfirmation)
-          setPendingConfirmation(null)
-        }}
-      />
     </div>
   )
 }

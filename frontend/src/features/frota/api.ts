@@ -291,9 +291,10 @@ export async function getMileageReport(
  *  diferentes (`PERMISSIONS_BY_ROLE` × o `grants` do módulo) e nada os obriga a concordar. Quem
  *  levar 403 aqui perde o select, não a tela.
  *
- *  **O que este contrato não dá, e devia:** `MemberResponse` é `id`/`user_id`/`role`/`status` —
- *  **sem nome e sem e-mail**. Não há como nomear a pessoa no select, e ele acaba oferecendo papel
- *  + um pedaço de UUID. É furo de backend, não da tela; está registrado no `Como ficou` da spec. */
+ *  **O que este contrato não dava, e passou a dar:** a `MemberResponse` era
+ *  `id`/`user_id`/`role`/`status`, sem nome e sem e-mail, e o select oferecia papel + um pedaço
+ *  de UUID. Era furo de backend, não da tela — e foi fechado lá, sem rota nova (ver `backend/04`,
+ *  seção "Depois"). A opção agora se identifica pela pessoa. */
 export async function listMembers(orgId: string): Promise<Page<Member>> {
   return pageSchema(memberSchema).parse(
     await apiFetch<unknown>(`/api/organizacoes/${encodeURIComponent(orgId)}/membros?page_size=100`),

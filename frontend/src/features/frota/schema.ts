@@ -98,13 +98,17 @@ export function pageSchema<ItemT extends z.ZodTypeAny>(item: ItemT) {
 
 /** Um membro da organização (`GET /api/organizacoes/{orgId}/membros`, do `access`).
  *
- *  A frota o consome por um motivo só: o `user_id` do condutor. **E o contrato não traz nome nem
- *  e-mail** — `MemberResponse` é `id`/`user_id`/`role`/`status`/`created_at`. Ver o comentário do
- *  `MemberOption` em `api.ts`: é um furo de backend que esta tela achou, não um descuido daqui. */
+ *  A frota o consome por um motivo só: o `user_id` do condutor — e por muito tempo era só isso
+ *  que dava pra consumir, porque a `MemberResponse` não trazia nome nem e-mail e o select
+ *  oferecia `papel · <8 caracteres de UUID>`. **O furo era de backend, e foi fechado lá**: a
+ *  resposta ganhou `name`/`email` (ver `backend/04`, seção "Depois"). Esta é a cópia local do
+ *  contrato, e ela declara só os campos que a frota usa. */
 export const memberSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
   organization_id: z.string().uuid(),
+  name: z.string(),
+  email: z.string(),
   role: z.string(),
   status: z.string(),
   created_at: z.string(),

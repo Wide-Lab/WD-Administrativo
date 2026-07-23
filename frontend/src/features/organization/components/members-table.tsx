@@ -25,13 +25,11 @@ const PAGE_SIZE = 20
 
 /** Quem tem acesso a esta organização.
  *
- *  **A coluna "Pessoa" mostra um id, e isso é uma lacuna do backend, não desta tela.** A
- *  `MemberResponse` devolve `user_id` e mais nada de identidade — não existe rota que traduza id
- *  de usuário em nome/e-mail (`/api/me` responde sobre quem pergunta, e o `/me/contexto`
- *  também). O efeito colateral é torto de propósito e vale registrar: **o e-mail de quem foi
- *  convidado aparece na aba ao lado, e some quando a pessoa aceita** — vira membro e perde o
- *  nome. Espelhar aqui o e-mail do convite não resolveria: o convite não devolve `user_id`, e o
- *  cruzamento seria um palpite. Ver o `Como ficou` da spec. */
+ *  **A coluna "Pessoa" mostrava um UUID**, porque a `MemberResponse` devolvia só o `user_id` —
+ *  e o efeito era o e-mail de alguém aparecer na aba de convites e *sumir* quando a pessoa
+ *  aceitava, virando membro. O conserto foi no backend, onde o buraco estava: a resposta agora
+ *  traz `name` e `email`, cruzados pela porta de identidade do `core`. Aqui não sobrou regra
+ *  nenhuma — a tela só exibe o que recebe. */
 export function MembersTable({
   orgId,
   organizationType,
@@ -103,7 +101,12 @@ export function MembersTable({
               <TableRow key={member.id}>
                 <TableCell className="px-4">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-muted">{member.user_id}</span>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{member.name}</p>
+                      {/* O e-mail embaixo, e não numa coluna própria: é ele que desempata dois
+                          homônimos, mas quem lê a lista procura pelo nome. */}
+                      <p className="truncate text-sm text-muted">{member.email}</p>
+                    </div>
                     {isSelf ? <Badge variant="primary">Você</Badge> : null}
                   </div>
                 </TableCell>

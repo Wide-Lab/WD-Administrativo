@@ -14,9 +14,9 @@ from src.modules.access.domain.entities import (
     Invitation,
     InvitationStatus,
     InvitationWithOrganization,
-    Membership,
     MembershipStatus,
     MembershipWithOrganization,
+    MembershipWithUser,
     ModuleEntitlement,
     Organization,
     OrganizationStatus,
@@ -220,28 +220,43 @@ class OrganizationModulesResponse(BaseModel):
 
 
 class MemberResponse(BaseModel):
+    """Um membro: o vínculo **e** a pessoa.
+
+    `name` e `email` chegaram depois — até então esta resposta devolvia só o `user_id`, e a
+    tela de membros exibia um UUID por não ter de onde tirar mais nada. Eles não vêm de um
+    join: `users` é tabela do `auth`, e quem os busca é o use case pela porta `UserReader` do
+    `core` (`MembershipWithUser`). O `user_id` continua aqui porque é o que identifica a pessoa
+    entre organizações — o e-mail é como se fala com ela, não a chave dela."""
+
     id: uuid.UUID
     user_id: uuid.UUID
     organization_id: uuid.UUID
+    name: str
+    email: str
     role: Role
     status: MembershipStatus
     created_at: datetime
 
     @classmethod
-    def from_entity(cls, entity: Membership) -> MemberResponse:
+    def from_entity(cls, entity: MembershipWithUser) -> MemberResponse:
         return cls(
-            id=entity.id,
-            user_id=entity.user_id,
-            organization_id=entity.organization_id,
-            role=entity.role,
-            status=entity.status,
-            created_at=entity.created_at,
+            id=entity.membership.id,
+            user_id=entity.membership.user_id,
+            organization_id=entity.membership.organization_id,
+            name=entity.user.name,
+            email=entity.user.email,
+            role=entity.membership.role,
+            status=entity.membership.status,
+            created_at=entity.membership.created_at,
         )
 
 
 class UpdateMemberRequest(BaseModel):
     """Papel e status são opcionais, mas ao menos um é exigido — o use case recusa o corpo
-    vazio com 422. Criar membro não passa por aqui: é convite (spec 06)."""
+    vazio com 422. Criar membro não passa por aqui: é convite (spec 06).
+
+    Não há campo pra dizer *de quem* é o vínculo, e nem poderia haver: quem edita a si mesmo
+    leva 422 pela comparação com a sessão, não por algo que o corpo diga."""
 
     role: Role | None = None
     status: MembershipStatus | None = None

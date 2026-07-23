@@ -221,10 +221,15 @@ consome — que é o que uma tela faz e nenhuma spec de backend tinha feito. Os 
 saíram de **escrever** as specs (`frontend/07`–`09`, 2026-07-20); o quarto saiu de
 **implementá-las** (2026-07-21), o que é a diferença entre prever o contrato e usá-lo:
 
-1. **`PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do último administrador.** Um
+1. ✅ **`PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do último administrador.** Um
    `company_admin` se rebaixa a `collaborator` e a organização fica sem quem a administre, sem
    erro e sem caminho de volta dentro do produto. É o mais urgente. A tela **não** o disfarça: um
    `if` no frontend seria o "cadeado pintado" que o `Can` proíbe.
+   **Fechado em 2026-07-23:** ninguém edita o próprio vínculo — papel **e** status, 422. E a
+   segunda metade caiu por consequência, sem virar regra: se cada um só edita os outros, sempre
+   sobra pelo menos um administrador, então "último administrador ativo" não precisou de consulta
+   nenhuma. Só então os controles sumiram da própria linha na tela — antes disso teriam sido o
+   cadeado pintado. Ver `backend/04` e `frontend/08`, seções "Depois".
 2. **Uma Empresa recém-provisionada não ganha o primeiro membro por tela nenhuma.**
    `platform_admin` não tem `invitations.write` (decisão da `08` — convidar é ato da organização),
    `POST /membros` não existe, e a organização nova não tem ninguém pra convidar o primeiro.
@@ -237,7 +242,7 @@ saíram de **escrever** as specs (`frontend/07`–`09`, 2026-07-20); o quarto sa
    `frontend/09`**.
 3. **Não há rota pra uma Empresa descobrir Parceiros** — `GET /organizacoes` é de
    `platform_admin`, então criar convênio começa por colar um UUID.
-4. **`MemberResponse` não devolve nome nem e-mail, e nenhuma rota traduz `user_id` em pessoa.**
+4. ✅ **`MemberResponse` não devolve nome nem e-mail, e nenhuma rota traduz `user_id` em pessoa.**
    Achado ao implementar, em 2026-07-21. A lista de membros mostra UUID e o select de condutor da
    frota mostra `papel · <8 caracteres>`; pior, o e-mail de quem foi convidado **aparece** na aba
    Convites e **some** quando a pessoa aceita — vira membro e perde o nome. Cruzar as duas listas
@@ -245,9 +250,13 @@ saíram de **escrever** as specs (`frontend/07`–`09`, 2026-07-20); o quarto sa
    torna este o mais forte dos quatro é **como** apareceu: as `07` e `08`, implementadas em
    paralelo e sem contato, esbarraram nele pelos dois lados. Ou `MemberResponse` ganha
    `name`/`email`, ou o kernel ganha uma rota de diretório — é decisão de backend.
+   **Fechado em 2026-07-23 pela primeira saída, e não pela segunda:** a rota de diretório teria
+   aberto superfície nova de leitura de identidade; ficou um verbo a mais na porta que já existe
+   (`UserReader.list_profiles_by_ids`, implementada pelo `auth`), com o `ListMembersUseCase`
+   cruzando a página. **O `mount_routes` não ganhou linha** — seguem cinco. Os dois consumidores
+   foram corrigidos juntos, pelos dois lados por onde o furo apareceu.
 
-O 1 e o 3 seguem em aberto: 1 é regra de domínio (422 no auto-rebaixamento e no último
-administrador ativo), 3 é rota nova. Ficam registrados nas specs que os acharam.
+**O 3 segue em aberto** — é rota nova (busca de Parceiro), e fica registrado na spec que o achou.
 
 **Os dois buracos que a `backend/06` deixou de propósito foram fechados pela `backend/08`
 (2026-07-20).** Não havia rota pra **revogar** nem pra **listar** convites (revogar era `UPDATE`
@@ -309,7 +318,7 @@ Backend:
 1. ✅ `backend/01-fundacao/spec.md` — scaffold FastAPI hexagonal, Postgres async, Alembic, tooling, docker-compose, convenção de nomes.
 2. ✅ `backend/02-identidade-e-sessao/spec.md` — usuário, login e-mail+senha (Argon2id), sessão, `GET /me`; a porta trocável pro SSO da Central.
 3. ✅ `backend/03-organizacoes-e-tenancy/spec.md` — `Organization` (plataforma/empresa/parceiro), escopo por tenant, o convênio Empresa↔Parceiro. **Guard de vínculo fechado pela 04.**
-4. ✅ `backend/04-membros-e-autorizacao/spec.md` — `Membership` (usuário↔org+papel), papéis/permissões, `require_permission`, resolução de persona.
+4. ✅ `backend/04-membros-e-autorizacao/spec.md` — `Membership` (usuário↔org+papel), papéis/permissões, `require_permission`, resolução de persona. **Em 2026-07-23 recebeu as duas dívidas que a `frontend/08` cobrou:** ninguém edita o próprio vínculo (422, e a regra do último administrador caiu por consequência) e a `MemberResponse` ganhou `name`/`email` — por um verbo a mais no `UserReader`, sem rota de diretório e sem linha nova no `mount_routes`. Ver `Como ficou`, seção "Depois".
 5. ✅ `backend/05-modulos-e-entitlements/spec.md` — registro de módulo + entitlement por tenant; o contrato que um app de negócio cumpre pra plugar. **Fase 1 do backend fechada.**
 6. ✅ `backend/06-convites-e-onboarding/spec.md` — convite/aceite de Colaborador (convidado pela Empresa) e cadastro de Parceiro (auto-registro + associação por convênio). **Fase 1 do backend fechada.** Sem rota de revogar/listar convite, e Parceiro não convida — ver `Como ficou`.
 7. ✅ `backend/07-testes/spec.md` — `pytest` + Postgres efêmero (testcontainers), a suíte que prende as invariantes que as `03`–`06` registraram como dívida, e a regra que faz teste deixar de ser opcional no backend. **Pré-requisito da fase 2, pago:** 69 testes, ~13s. Faltam CI (spec seguinte) e `mount_module`, só testável quando o primeiro app de negócio existir — ver `Como ficou`.
@@ -341,7 +350,7 @@ Frontend:
 5. ✅ `frontend/05-selecao-de-organizacao/spec.md` — troca de contexto quando o usuário pertence a mais de uma organização (ex.: Parceiro que atende N Empresas). O último `orgId` visitado passou a ganhar do atalho da Plataforma no pós-login — muda uma decisão da `04`, ver `Como ficou`.
 6. ✅ `frontend/06-onboarding/spec.md` — telas públicas de aceite de convite e de auto-cadastro de Parceiro, com o grupo de senha compartilhado. **Fase 1 fechada.** A "terceira tela" do critério 3 (troca de senha logada) nunca existiu, e o critério 4 cede ao 2 no auto-cadastro — ver `Como ficou`.
 7. ✅ `frontend/07-telas-da-frota/spec.md` — as telas do primeiro app de negócio: viagens, veículos, condutores e quilometragem, substituindo a rota-placeholder. Um item de menu, quatro telas em abas — módulo não edita a casca. **Tudo o que difere entre pessoas sai de capability, nunca de persona.** O descritor da frota sai do `MODULE_CATALOG` e vira `features/frota/module.ts`, o espelho do que a `backend/10` fez. Fica fora: pré-preencher o hodômetro (falta `current_odometer` no backend) e exportar relatório. **Implementada em 2026-07-21**; o `Como ficou` registra que a spec errou os valores de `agrupar_por` (o enum é `veiculo`/`condutor`) e que o 409 de sobreposição é discriminado por texto de mensagem, porque o `core` devolve `code: "conflict"` pros cinco conflitos de `vehicle_usages`.
-8. ✅ `frontend/08-gestao-da-organizacao/spec.md` — pessoas (membros + convites em abas) e convênios: a tela que a `backend/08` nomeou. `buildNav` passa a receber `permissions` pra decidir os itens de kernel. Convite nunca exibe token, e vencimento nunca é recalculado no navegador. **Dois achados viram spec de backend:** `PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do último administrador, e não há rota pra uma Empresa descobrir Parceiros. **Implementada em 2026-07-21**, e um terceiro achado apareceu na implementação: `MemberResponse` não tem nome nem e-mail, então a lista de membros mostra UUID. O `Como ficou` também registra duas leituras que a spec não fechava — "Parceiros" segue persona (não existe capability pra usar, porque a rota exige só o vínculo) e `platform_admin` **vê** Pessoas, porque tem `members.read` de verdade.
+8. ✅ `frontend/08-gestao-da-organizacao/spec.md` — pessoas (membros + convites em abas) e convênios: a tela que a `backend/08` nomeou. `buildNav` passa a receber `permissions` pra decidir os itens de kernel. Convite nunca exibe token, e vencimento nunca é recalculado no navegador. **Dois achados viram spec de backend:** `PATCH /membros/{id}` não impede auto-rebaixamento nem a perda do último administrador, e não há rota pra uma Empresa descobrir Parceiros. **Implementada em 2026-07-21**, e um terceiro achado apareceu na implementação: `MemberResponse` não tem nome nem e-mail, então a lista de membros mostra UUID. **Em 2026-07-23 esses dois foram fechados no backend** (422 na auto-edição de vínculo; `name`/`email` na `MemberResponse`, por um verbo novo na porta `UserReader`), e a tela cobrou o preço: os controles saíram da própria linha, a coluna Pessoa virou nome + e-mail, e o filtro de convites perdeu a opção `Pendente` — que duplicava o default sem parâmetro. Ver as seções "Depois" nos dois `Como ficou`. O `Como ficou` também registra duas leituras que a spec não fechava — "Parceiros" segue persona (não existe capability pra usar, porque a rota exige só o vínculo) e `platform_admin` **vê** Pessoas, porque tem `members.read` de verdade.
 9. 📋 `frontend/09-console-da-plataforma/spec.md` — tenants e módulos vendidos, dentro da `/plataforma` e **não** na casca do tenant (é a tela de quem vende). Inspecionar tenant não escreve o `last-org`, senão o pós-login cairia no último cliente inspecionado. **Bloqueada:** uma Empresa recém-provisionada não ganha o primeiro membro por tela nenhuma, e a saída decidida (o e-mail do primeiro admin no `POST /organizacoes`, criando o convite na mesma transação) é **spec de backend ainda não escrita** — implementar a `09` antes dela entregaria o console com o caminho que importa ainda passando por CLI.
 10. 📋 `frontend/10-foto-do-hodometro/spec.md` — o botão de câmera nos diálogos de lançar e encerrar
     viagem, o hodômetro pré-preenchido com a última leitura do veículo, e a foto visível na viagem

@@ -47,8 +47,7 @@ class TestLancarComLeitura:
 
         leitura = (
             await gestor.post(
-                f"/api/organizacoes/{empresa.id}/frota/veiculos/{veiculo.id}"
-                "/hodometro/leituras",
+                f"/api/organizacoes/{empresa.id}/frota/veiculos/{veiculo.id}/hodometro/leituras",
                 files={"foto": ("painel.jpg", foto_jpeg(), "image/jpeg")},
             )
         ).json()
@@ -358,8 +357,7 @@ class TestServirAFoto:
 
         leitura = (
             await gestor.post(
-                f"/api/organizacoes/{empresa.id}/frota/veiculos/{veiculo.id}"
-                "/hodometro/leituras",
+                f"/api/organizacoes/{empresa.id}/frota/veiculos/{veiculo.id}/hodometro/leituras",
                 files={"foto": ("painel.jpg", bytes_da_foto, "image/jpeg")},
             )
         ).json()
@@ -428,8 +426,7 @@ class TestServirAFoto:
 
         leitura = (
             await gestor.post(
-                f"/api/organizacoes/{empresa.id}/frota/veiculos/{veiculo.id}"
-                "/hodometro/leituras",
+                f"/api/organizacoes/{empresa.id}/frota/veiculos/{veiculo.id}/hodometro/leituras",
                 files={"foto": ("painel.jpg", foto_jpeg(), "image/jpeg")},
             )
         ).json()
@@ -466,8 +463,7 @@ class TestServirAFoto:
 
         leitura = (
             await pessoa.post(
-                f"/api/organizacoes/{empresa.id}/frota/veiculos/{veiculo.id}"
-                "/hodometro/leituras",
+                f"/api/organizacoes/{empresa.id}/frota/veiculos/{veiculo.id}/hodometro/leituras",
                 files={"foto": ("painel.jpg", foto_jpeg(), "image/jpeg")},
             )
         ).json()

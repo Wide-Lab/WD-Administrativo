@@ -24,7 +24,11 @@ function fallbackMessage(error: unknown): string {
  *  O 422 é repassado **como veio**: a mensagem do backend nomeia o papel recusado e lista os
  *  papéis válidos daquele tipo de organização (`update_membership.py`), e nenhuma frase que eu
  *  escrevesse aqui seria mais útil que essa. É também o que faz o critério 7 se observar: se o
- *  espelho de `ROLES_BY_ORGANIZATION_TYPE` divergir do backend, é esta mensagem que conta. */
+ *  espelho de `ROLES_BY_ORGANIZATION_TYPE` divergir do backend, é esta mensagem que conta.
+ *
+ *  O outro 422 dele — a auto-edição de vínculo — chega por este mesmo caminho, e não deveria
+ *  chegar pela tela: a própria linha não tem controles. Quando chegar, é uma aba velha ou um
+ *  `curl`, e a frase do backend já diz o que fazer (pedir a outro administrador). */
 export function updateMemberErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 404) {
     return 'Este vínculo não existe mais nesta organização. Recarregue a lista.'

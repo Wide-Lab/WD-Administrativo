@@ -24,15 +24,20 @@ export function pageSchema<ItemT extends z.ZodTypeAny>(item: ItemT) {
 
 /** Um membro, como o `GET .../membros` o devolve.
  *
- *  **Note o que não há aqui: nome e e-mail.** A `MemberResponse` do backend devolve só o
- *  `user_id` — não existe rota que traduza um id de usuário em pessoa (`/api/me` é sobre quem
- *  pergunta, e o `/me/contexto` também). Não é omissão desta tela: é o terceiro achado da spec,
- *  registrado no `Como ficou`. Enquanto a rota não existe, a coluna mostra o id e marca a
- *  própria linha — inventar o nome no cliente seria inventar dado. */
+ *  **`name` e `email` chegaram depois.** Até então a `MemberResponse` do backend devolvia só o
+ *  `user_id`, e a coluna "Pessoa" exibia um UUID — não por escolha desta tela, e sim porque não
+ *  havia de onde tirar mais nada (`/api/me` é sobre quem pergunta, e o `/me/contexto` também).
+ *  Era o terceiro achado da spec, e virou trabalho de backend: o `ListMembersUseCase` cruza os
+ *  vínculos com a porta de identidade do `core`. Não há rota nova pra chamar daqui.
+ *
+ *  O `user_id` continua no schema, e não é redundante com o e-mail: é ele que diz que a linha
+ *  "Você" é sua, comparado com o `id` da sessão. */
 export const memberSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
   organization_id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email(),
   role: roleSchema,
   status: membershipStatusSchema,
   created_at: z.string(),

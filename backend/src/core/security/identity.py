@@ -1,5 +1,5 @@
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Annotated, Protocol
 
@@ -21,11 +21,55 @@ class CurrentUser:
     name: str
 
 
+@dataclass(frozen=True, slots=True)
+class UserProfile:
+    """A identidade de **alguém**, e não de quem pergunta.
+
+    Tem os mesmos três campos de `CurrentUser` e mesmo assim é um tipo separado, porque a
+    pergunta é outra: `CurrentUser` é o sujeito da requisição — o que `require_permission`
+    autoriza e o que a sessão carrega —, e um `UserProfile` é um terceiro, exibido numa lista.
+    Fundir os dois faria `CurrentUser` circular por listagens onde ninguém está autenticado como
+    aquela pessoa, e o primeiro `if user.id == ...` escrito por engano viraria um bug de
+    autorização."""
+
+    id: UserId
+    email: str
+    name: str
+
+
 class UserReader(Protocol):
     """Porta de leitura de identidade. Existe para o `core` resolver `current_user` sem
     importar `auth` — quem a implementa é o módulo `auth`, que é dono da tabela `users`."""
 
     async def get_active_by_id(self, user_id: UserId) -> CurrentUser | None: ...
+
+    async def list_profiles_by_ids(
+        self,
+        user_ids: Sequence[UserId],
+    ) -> Mapping[UserId, UserProfile]:
+        """Traduz ids de usuário em nome e e-mail, **em lote**.
+
+        Existe porque a lista de membros do `access` mostra pessoas, e `memberships` só guarda
+        o id — a tabela `users` é do `auth`. Sem esta porta, `access` importaria `auth` para
+        pintar uma coluna, e o seam de extração cairia por um `<td>`. Mesmo motivo do
+        `UserDirectory`, e para o terceiro verbo.
+
+        **Em lote, e não um `get` por linha**, porque quem chama tem uma página inteira na mão:
+        a versão singular convidaria ao N+1 sem que nada no tipo denunciasse. Recebe uma
+        `Sequence` porque a ordem de quem pergunta é dele; devolve um `Mapping` porque quem
+        responde não sabe em que ordem exibir.
+
+        Devolve o perfil de quem foi **desativado** também — diferente do `get_active_by_id`,
+        que filtra por `active` de propósito. São perguntas opostas: lá se decide se alguém
+        entra, aqui se mostra quem é o dono de um vínculo que existe. Esconder o nome de um
+        usuário desativado faria a linha dele voltar a ser um UUID justamente na tela que serve
+        pra reativá-lo.
+
+        Um id sem linha correspondente simplesmente **não aparece** no mapa — quem chama decide
+        o que isso significa no contexto dele.
+        """
+
+        ...
 
 
 class UserDirectory(Protocol):

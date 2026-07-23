@@ -56,6 +56,4 @@ async def ensure_reading_usable(
         )
 
     if await usages.is_reading_referenced(reading_id):
-        raise ValidationAppError(
-            "Esta leitura de hodômetro já está anexada a outra viagem."
-        )
+        raise ValidationAppError("Esta leitura de hodômetro já está anexada a outra viagem.")

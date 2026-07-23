@@ -5,6 +5,7 @@ import {
   actionFor,
   INVITATION_ACTION,
   parseStatusFilter,
+  STATUS_FILTER_OPTIONS,
   statusFilterHref,
 } from '#/features/organization/lib/invitation-status'
 
@@ -53,6 +54,40 @@ describe('INVITATION_ACTION', () => {
     expect(Object.keys(INVITATION_ACTION).sort()).toEqual(
       [...invitationStatusSchema.options].sort(),
     )
+  })
+})
+
+describe('STATUS_FILTER_OPTIONS', () => {
+  it('não oferece duas opções que produzem a mesma lista', () => {
+    // O bug que este arquivo passou a cobrir: a barra mostrava `Pendentes · Pendente · …`, e as
+    // duas primeiras davam no mesmo — sem `?status=`, o backend devolve os pendentes.
+    const hrefs = STATUS_FILTER_OPTIONS.map((option) => statusFilterHref('/x', option.value))
+
+    expect(new Set(hrefs).size).toBe(STATUS_FILTER_OPTIONS.length)
+  })
+
+  it('não repete `pending`, porque ele é o default sem parâmetro', () => {
+    expect(STATUS_FILTER_OPTIONS.map((option) => option.value)).not.toContain('pending')
+  })
+
+  it('abre no estado sem filtro, que é o que a URL limpa descreve', () => {
+    expect(STATUS_FILTER_OPTIONS[0]?.value).toBeNull()
+  })
+
+  it('cobre todo status do enum — como default ou como opção explícita', () => {
+    // Sem isto, um status novo no backend nasceria inalcançável pela tela e ninguém notaria.
+    const alcancaveis = new Set(STATUS_FILTER_OPTIONS.map((option) => option.value ?? 'pending'))
+
+    expect([...alcancaveis].sort()).toEqual([...invitationStatusSchema.options].sort())
+  })
+
+  it('rotula no plural, porque cada opção é um recorte da lista e não um convite', () => {
+    expect(STATUS_FILTER_OPTIONS.map((option) => option.label)).toEqual([
+      'Pendentes',
+      'Aceitos',
+      'Revogados',
+      'Expirados',
+    ])
   })
 })
 

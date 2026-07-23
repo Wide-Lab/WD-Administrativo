@@ -1,7 +1,9 @@
+from collections.abc import Mapping, Sequence
+
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.security.identity import CurrentUser, UserId
+from src.core.security.identity import CurrentUser, UserId, UserProfile
 from src.modules.auth.adapters.db.models import User as UserModel
 from src.modules.auth.domain.entities import UserStatus
 
@@ -31,3 +33,27 @@ class SqlAlchemyUserReader:
             return None
 
         return CurrentUser(id=row.id, email=row.email, name=row.name)
+
+    async def list_profiles_by_ids(
+        self,
+        user_ids: Sequence[UserId],
+    ) -> Mapping[UserId, UserProfile]:
+        """Nome e e-mail de um punhado de pessoas, num `SELECT` só.
+
+        **Sem filtro por `status`**, ao contrário do `get_active_by_id` logo acima — e a
+        diferença entre os dois é o ponto da porta: aquele decide quem entra, este só diz quem é
+        o dono de um vínculo que já existe. Ver o docstring da porta.
+
+        A lista vazia sai daqui sem tocar o banco: um `IN ()` seria SQL válido e inútil."""
+
+        if not user_ids:
+            return {}
+
+        result = await self._session.execute(
+            sa.select(UserModel).where(UserModel.id.in_(set(user_ids)))
+        )
+
+        return {
+            row.id: UserProfile(id=row.id, email=row.email, name=row.name)
+            for row in result.scalars()
+        }

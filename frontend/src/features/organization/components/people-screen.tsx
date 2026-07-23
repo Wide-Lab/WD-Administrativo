@@ -5,14 +5,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '#/components/ui/button'
 import { Can } from '#/features/context/components/can'
-import { INVITATION_STATUS_LABEL } from '#/features/context/lib/labels'
 import { useOrgContext, useOrgId } from '#/features/context/use-org-context'
 import { AccessDenied } from '#/features/organization/components/access-denied'
 import { InvitationsTable } from '#/features/organization/components/invitations-table'
 import { InviteForm } from '#/features/organization/components/invite-form'
 import { MembersTable } from '#/features/organization/components/members-table'
-import { parseStatusFilter, statusFilterHref } from '#/features/organization/lib/invitation-status'
-import { invitationStatusSchema } from '#/features/organization/schema'
+import {
+  parseStatusFilter,
+  STATUS_FILTER_OPTIONS,
+  statusFilterHref,
+} from '#/features/organization/lib/invitation-status'
 import { cn } from '#/lib/utils'
 
 /** Membros e Convites são **a mesma pergunta em dois tempos** — quem tem acesso, e quem foi
@@ -55,21 +57,17 @@ function TabLink({
 
 /** O filtro de status da aba Convites. Vai pra URL como `?status=`, igual ao backend — e a opção
  *  "Pendentes" é a **ausência** do parâmetro, não `?status=pending`: o default de devolver só os
- *  pendentes é do servidor, e reescrevê-lo aqui criaria uma segunda verdade sobre o mesmo. */
+ *  pendentes é do servidor, e reescrevê-lo aqui criaria uma segunda verdade sobre o mesmo.
+ *
+ *  Foi por não seguir isso até o fim que a barra nasceu com uma opção a mais: as opções saíam do
+ *  enum inteiro, e `pending` reaparecia ao lado do default fazendo a mesma coisa. Elas moram na
+ *  lib agora, onde um teste as alcança. */
 function StatusFilter({ current }: { current: ReturnType<typeof parseStatusFilter> }) {
   const pathname = usePathname()
 
-  const options = [
-    { value: null, label: 'Pendentes' },
-    ...invitationStatusSchema.options.map((status) => ({
-      value: status,
-      label: INVITATION_STATUS_LABEL[status],
-    })),
-  ]
-
   return (
     <nav aria-label="Filtrar convites por status" className="flex flex-wrap gap-2">
-      {options.map((option) => {
+      {STATUS_FILTER_OPTIONS.map((option) => {
         const isActive = option.value === current
 
         return (

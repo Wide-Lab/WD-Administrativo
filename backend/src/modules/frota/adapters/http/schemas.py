@@ -180,6 +180,7 @@ class UpdateUsageRequest(BaseModel):
     """**Sem os campos de leitura, e é decisão.** Corrigir a foto de uma viagem já lançada é caso
     raro o bastante pra esperar quem peça — então não há rota, e a ausência aqui é o que garante
     isso sem um `if`."""
+
     vehicle_id: uuid.UUID | None = None
     driver_id: uuid.UUID | None = None
     started_at: AwareDatetime | None = None

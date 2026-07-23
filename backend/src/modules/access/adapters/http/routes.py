@@ -5,7 +5,13 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query, Response, status
 
 from src.core.notifications import EmailSenderDep
-from src.core.security import CurrentUserDep, UserDirectoryDep, issue_session, set_session_cookie
+from src.core.security import (
+    CurrentUserDep,
+    UserDirectoryDep,
+    UserReaderDep,
+    issue_session,
+    set_session_cookie,
+)
 from src.core.tenancy import CurrentOrganizationDep, OrganizationType
 from src.modules.access.adapters.http.schemas import (
     AcceptInvitationRequest,
@@ -234,11 +240,15 @@ async def update_agreement(
 async def list_members(
     organization: MemberReaderDep,
     uow: UnitOfWorkDep,
+    users: UserReaderDep,
     page_params: PageParamsDep,
 ) -> PageResponse[MemberResponse]:
-    """Lista os membros da organização do path."""
+    """Lista os membros da organização do path — cada um com nome e e-mail.
 
-    use_case = ListMembersUseCase(uow=uow)
+    A identidade vem pela porta `UserReader` do `core`, e não de um join: `memberships` é do
+    `access` e `users` é do `auth`."""
+
+    use_case = ListMembersUseCase(uow=uow, users=users)
     page = await use_case.execute(organization=organization, page_params=page_params)
 
     return PageResponse.of(
@@ -454,17 +464,24 @@ async def register_partner(
 @router.patch("/organizacoes/{orgId}/membros/{id}")
 async def update_member(
     body: UpdateMemberRequest,
+    user: CurrentUserDep,
     organization: MemberWriterDep,
     uow: UnitOfWorkDep,
+    users: UserReaderDep,
     membership_id: Annotated[uuid.UUID, Path(alias="id")],
 ) -> MemberResponse:
-    """Muda papel ou status de um membro. Criar membro é via convite (spec 06), não POST."""
+    """Muda papel ou status de um membro. Criar membro é via convite (spec 06), não POST.
 
-    use_case = UpdateMembershipUseCase(uow=uow)
+    **O próprio vínculo responde 422**: ninguém se rebaixa nem se desativa, porque a saída
+    dessa mudança não estaria mais nas mãos de quem a fez. O `CurrentUserDep` está aqui por
+    isso — a rota já tinha o guard de capability, e o que faltava era saber *quem* pede."""
+
+    use_case = UpdateMembershipUseCase(uow=uow, users=users)
     membership = await use_case.execute(
         organization=organization,
         membership_id=membership_id,
         command=UpdateMembershipCommand(role=body.role, status=body.status),
+        actor=user,
     )
 
     return MemberResponse.from_entity(membership)
